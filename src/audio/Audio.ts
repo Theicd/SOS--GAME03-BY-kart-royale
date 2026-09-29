@@ -1337,7 +1337,10 @@ export class Audio implements System {
       case 'item-pickup': {
         const d = this.dest(e.kart);
         if (!d) return;
-        if (e.kart.isPlayer) this.roulette(d);
+        if (e.kart.isPlayer) {
+          if (this.gate('pickup', 0.15)) this.coin(d);
+          this.roulette(d);
+        }
         else if (this.gate('pick' + e.kart.id, 0.3)) this.blip(d, 880, 0.1, 0.12);
         break;
       }
@@ -1683,7 +1686,7 @@ export class Audio implements System {
     drive.connect(lp);
     lp.connect(g);
     g.connect(dest);
-    const send = s.send(g, s.reverbIn, 0.5);
+    const send = s.send(g, s.sfxVerb, 0.5);
     lp.frequency.setValueAtTime(4200, t);
     lp.frequency.exponentialRampToValueAtTime(160, t + dur);
     s.perc(g.gain, t, 0.55 * size + 0.2, 0.004, dur);
@@ -1890,7 +1893,7 @@ export class Audio implements System {
     idx.gain.exponentialRampToValueAtTime(freq * 0.05, t + dur * 0.4);
     car.connect(g);
     s.perc(g.gain, t, vol, 0.005, dur);
-    const send = s.send(g, s.reverbIn, 0.35);
+    const send = s.send(g, s.sfxVerb, 0.35);
     car.start(t);
     mod.start(t);
     car.stop(t + dur + 0.1);

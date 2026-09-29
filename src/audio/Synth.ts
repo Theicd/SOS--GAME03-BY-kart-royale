@@ -79,6 +79,14 @@ export class Synth {
   /** send inputs — connect a source here through its own gain to feed an fx */
   readonly reverbIn: GainNode;
   readonly delayIn: GainNode;
+  /**
+   * Per-voice sends from one-shots and the synth score must go through these,
+   * not straight into reverbIn/delayIn, or the player's bus volume cannot
+   * silence their tails.
+   */
+  readonly sfxVerb: GainNode;
+  readonly musicVerb: GainNode;
+  readonly musicDelay: GainNode;
   /** return level — Audio drives this up inside the tunnel */
   readonly reverbReturn: GainNode;
 
@@ -265,6 +273,13 @@ export class Synth {
     fbL.connect(dL);
     delayReturn.connect(this.mix);
 
+    this.sfxVerb = ac.createGain();
+    this.sfxVerb.connect(this.reverbIn);
+    this.musicVerb = ac.createGain();
+    this.musicVerb.connect(this.reverbIn);
+    this.musicDelay = ac.createGain();
+    this.musicDelay.connect(this.delayIn);
+
     this.noiseBuf = {
       white: this.makeNoise('white', 2.0, 0x1a2b3c),
       pink: this.makeNoise('pink', 2.7, 0x5eed01),
@@ -283,6 +298,9 @@ export class Synth {
     this.engine.gain.setTargetAtTime(0.347 * clamp(engine, 0, 1), t, 0.04);
     this.sfx.gain.setTargetAtTime(0.9 * clamp(sfx, 0, 1), t, 0.04);
     this.lead.gain.setTargetAtTime(clamp(sfx, 0, 1), t, 0.04);
+    this.sfxVerb.gain.setTargetAtTime(clamp(sfx, 0, 1), t, 0.04);
+    this.musicVerb.gain.setTargetAtTime(clamp(music, 0, 1), t, 0.04);
+    this.musicDelay.gain.setTargetAtTime(clamp(music, 0, 1), t, 0.04);
   }
 
   setMasterVolume(v: number) {

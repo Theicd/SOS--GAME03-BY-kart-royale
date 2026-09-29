@@ -131,12 +131,12 @@ export class Music {
     for (const g of [this.padG, this.arpG, this.bassG, this.drumG, this.leadG]) g.connect(this.out);
 
     // Pad and arp live in the reverb; the rhythm section stays dry and forward.
-    s.send(this.padG, s.reverbIn, 0.55);
-    s.send(this.arpG, s.delayIn, 0.3);
-    s.send(this.arpG, s.reverbIn, 0.16);
-    s.send(this.leadG, s.delayIn, 0.22);
-    s.send(this.leadG, s.reverbIn, 0.2);
-    s.send(this.drumG, s.reverbIn, 0.06);
+    s.send(this.padG, s.musicVerb, 0.55);
+    s.send(this.arpG, s.musicDelay, 0.3);
+    s.send(this.arpG, s.musicVerb, 0.16);
+    s.send(this.leadG, s.musicDelay, 0.22);
+    s.send(this.leadG, s.musicVerb, 0.2);
+    s.send(this.drumG, s.musicVerb, 0.06);
     this.initTracks();
   }
 
@@ -578,7 +578,7 @@ export class Music {
     hp.connect(pk);
     pk.connect(g);
     g.connect(this.drumG);
-    const send = s.send(g, s.reverbIn, 0.3);
+    const send = s.send(g, s.musicVerb, 0.3);
     s.perc(g.gain, t, 0.3, 0.004, 0.9);
     n.start(t, 0.4);
     n.stop(t + 1.0);
