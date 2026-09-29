@@ -362,7 +362,7 @@ export class Menus {
   private onConfirm(ctx: Ctx, inRace: boolean) {
     switch (this.screen) {
       case 'title':
-        this.selecting = true;
+        this.startRace(ctx);
         this.ui('confirm');
         return;
       case 'select':
@@ -393,6 +393,8 @@ export class Menus {
     this.resultsBuilt = false;
     this.resultsFinished = -1;
     this.finishTimes.clear();
+    const n = ctx.race.karts.length;
+    if (n > 0) this.selected = Math.floor(Math.random() * n);
     // Hand the choice over BEFORE resetting. This line is the whole point of
     // the select screen: without it `this.selected` only ever moved a CSS
     // highlight, and every race was driven in kart 0 whatever was clicked.
