@@ -11,7 +11,7 @@ export interface SoundLevels {
   sfx: number;
 }
 
-const levels: SoundLevels = { music: 1, engine: 1, sfx: 1 };
+const levels: SoundLevels = { music: 1, engine: 0.1, sfx: 0.1 };
 let ver = 0;
 
 try {
