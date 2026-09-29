@@ -20,7 +20,6 @@ import { Race } from './game/Race';
 import { ChaseCamera } from './game/Camera';
 import { HUD } from './ui/HUD';
 import { Audio } from './audio/Audio';
-import { startNet } from './net/SosNet';
 import { netHooks } from './net/NetHooks';
 import { installAppButton } from './ui/Install';
 import { applyLiteMaterials } from './render/LiteMaterials';
@@ -1098,7 +1097,6 @@ function installContextRecovery() {
 }
 
 installAppButton();
-startNet(ctx);
 
 boot().catch((err) => {
   console.error('[boot] failed', err);

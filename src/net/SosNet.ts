@@ -165,10 +165,34 @@ class SosNet {
     netHooks.requestStart = () => this.requestStart();
 
     this.listen();
-    setTimeout(() => void this.matchmake(), LISTEN_MS);
-    setInterval(() => this.sendPoses(), 1000 / POSE_HZ);
-    setInterval(() => this.tick(), 250);
-    addEventListener('pagehide', () => this.leave());
+    this.timers.push(
+      window.setTimeout(() => void this.matchmake(), LISTEN_MS),
+      window.setInterval(() => this.sendPoses(), 1000 / POSE_HZ),
+      window.setInterval(() => this.tick(), 250),
+    );
+    addEventListener('pagehide', this.onPageHide);
+  }
+
+  private timers: number[] = [];
+  private disposed = false;
+  private onPageHide = () => this.leave();
+
+  /** Leave the room and put the race back to plain single-player. */
+  dispose() {
+    this.disposed = true;
+    this.leave();
+    for (const t of this.timers) { clearTimeout(t); clearInterval(t); }
+    clearInterval(this.heartbeat);
+    removeEventListener('pagehide', this.onPageHide);
+    this.peers.clear();
+    this.host = null;
+    this.joining = null;
+    this.clearRemote();
+    this.race.netDrive = null;
+    netHooks.requestStart = null;
+    const pool = this.pool;
+    setTimeout(() => { try { pool.destroy(); } catch { /* already closed */ } }, 1500);
+    this.badge.remove();
   }
 
   // ------------------------------------------------------------------ nostr
@@ -239,9 +263,10 @@ class SosNet {
 
   private async matchmake() {
     for (const room of this.liveRooms()) {
+      if (this.disposed) return;
       if (await this.tryJoin(room.pubkey)) return;
     }
-    this.becomeHost();
+    if (!this.disposed) this.becomeHost();
   }
 
   private becomeHost() {
@@ -377,6 +402,7 @@ class SosNet {
   }
 
   private lost(peer: Peer) {
+    if (this.disposed) return;
     if (this.role === 'client' && this.host === peer) {
       this.host = null;
       this.clearRemote();
@@ -764,4 +790,9 @@ export function startNet(ctx: Ctx) {
   if (q.get('net') === '0' || q.get('solo') === '1') return;
   if (typeof RTCPeerConnection === 'undefined' || typeof WebSocket === 'undefined') return;
   try { instance = new SosNet(ctx); } catch (err) { console.warn('[net] disabled', err); }
+}
+
+export function stopNet() {
+  instance?.dispose();
+  instance = null;
 }

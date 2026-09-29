@@ -1745,6 +1745,17 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   text-transform: uppercase;
   opacity: 0.75;
 }
+.kr-mode { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vmin; margin-top: 1.4vmin; }
+.kr-btn-mode {
+  min-width: 11em;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(14px, 2.2vmin, 20px);
+}
+.kr-btn-online { border-color: rgba(106, 210, 255, 0.7); box-shadow: 0 0 18px rgba(106, 210, 255, 0.25); }
+.kr-btn-online.on { background: linear-gradient(180deg, #2a8fd0, #135a8c); color: #fff; }
 .kr-quality-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 1vmin; max-width: 96vw; }
 .kr-btn-q {
   min-height: 42px;

@@ -15,6 +15,7 @@ import { QUALITY_KEY } from '../core/Settings';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
 import { netHooks } from '../net/NetHooks';
+import { startNet, stopNet } from '../net/SosNet';
 
 export type ScreenName = 'none' | 'title' | 'select' | 'pause' | 'results';
 
@@ -168,6 +169,10 @@ export class Menus {
   private titleGlyphs!: HTMLDivElement;
   private touchCopy: boolean | null = null;
   private qualityBtns: HTMLDivElement[] = [];
+  /** title: play-mode buttons; see `setOnline` */
+  private soloBtn!: HTMLDivElement;
+  private onlineBtn!: HTMLDivElement;
+  private online = false;
 
   private rosterEl!: HTMLDivElement;
   private standingsEl!: HTMLDivElement;
@@ -201,6 +206,8 @@ export class Menus {
     // its own click handler, so those are excluded to avoid confirming twice.
     this.root.addEventListener('pointerdown', (e) => {
       if (!this.blocking) return;
+      // the title offers a choice of mode, so a stray tap must not pick one
+      if (this.screen === 'title') return;
       const t = e.target as HTMLElement;
       if (t.closest('.kr-btn, .kr-card')) return;
       this.tapConfirm = true;
@@ -225,6 +232,8 @@ export class Menus {
     const current = ctx.settings.lite ? 'lite'
       : q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
     for (const b of this.qualityBtns) b.classList.toggle('sel', b.dataset.q === current);
+    // `?online=1` opens straight into online mode — the entry a lobby page links to.
+    if (new URLSearchParams(location.search).get('online') === '1') this.setOnline(true);
   }
 
   // ------------------------------------------------------------------ frame
@@ -441,6 +450,19 @@ export class Menus {
     // never brought along, so an iPad in desktop mode got on-screen controls and
     // the words "Press Enter to Start" above them.
     this.titlePrompt = el('div', 'kr-prompt', wrap);
+    const mode = el('div', 'kr-mode', wrap);
+    this.soloBtn = el('div', 'kr-btn kr-btn-mode', mode, 'Solo race');
+    this.onlineBtn = el('div', 'kr-btn kr-btn-mode kr-btn-online', mode, 'Online');
+    this.soloBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (this.online) this.setOnline(false);
+      else this.startRace(this.ctx);
+    };
+    this.onlineBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (this.online) this.startRace(this.ctx);
+      else this.setOnline(true);
+    };
     this.titleGlyphs = el('div', 'kr-glyphs', wrap);
     this.titleHint = el('div', 'kr-hint', wrap);
     const qrow = el('div', 'kr-quality', wrap);
@@ -478,10 +500,32 @@ export class Menus {
    * stick in `TouchControls` is the other half of this, and it is on the frame
    * the player is looking at rather than on a screen they are leaving.
    */
+  /**
+   * Online is opt-in: nothing touches the network until the player asks. While
+   * online the two buttons become "Start race" (routed through the room) and
+   * "Leave online" (tears the room down and goes back to solo).
+   */
+  private setOnline(on: boolean) {
+    if (on === this.online) return;
+    this.online = on;
+    if (on) startNet(this.ctx);
+    else stopNet();
+    this.soloBtn.textContent = on ? 'Leave online' : 'Solo race';
+    this.onlineBtn.textContent = on ? 'Start race' : 'Online';
+    this.onlineBtn.classList.toggle('on', on);
+    this.syncPrompt();
+  }
+
+  private syncPrompt() {
+    this.titlePrompt.textContent = this.online
+      ? 'Online — players join automatically'
+      : this.touchCopy ? 'Choose how to play' : 'Enter for a solo race';
+  }
+
   private syncTouchCopy(touch: boolean) {
     if (this.touchCopy === touch) return;
     this.touchCopy = touch;
-    this.titlePrompt.textContent = touch ? 'Tap to Start' : 'Press Enter to Start';
+    this.syncPrompt();
     if (touch) {
       this.titleGlyphs.innerHTML =
         '<div class="kr-gl"><span class="kr-gl-stick"><i></i><b></b></span>Steer</div>' +
