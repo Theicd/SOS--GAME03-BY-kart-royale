@@ -23,6 +23,7 @@ import { Audio } from './audio/Audio';
 import { startNet } from './net/SosNet';
 import { netHooks } from './net/NetHooks';
 import { installAppButton } from './ui/Install';
+import { applyLiteMaterials } from './render/LiteMaterials';
 
 const parent = document.getElementById('app')!;
 
@@ -181,6 +182,10 @@ async function boot() {
   // Compile every shader before the first frame is presented. Doing it here
   // costs a moment of boot; not doing it costs a dropped frame mid-race every
   // time a new material first appears, which reads as the screen flashing black.
+  if (ctx.settings.lite) {
+    const n = applyLiteMaterials(ctx.scene);
+    console.info(`[lite] ${n} materials swapped to Lambert`);
+  }
   bootProgress(systems.length / (systems.length + 1), 'compiling shaders');
   await new Promise((r) => requestAnimationFrame(r));
   const warm = await prewarm(ctx);
@@ -719,6 +724,42 @@ function settleDescent(): boolean {
 }
 
 let last = performance.now();
+/**
+ * Lite paces the whole loop at 30 fps: an even 33 ms feels smoother on a weak
+ * phone than a ragged 40-55, and the idle half of every frame keeps the SoC
+ * out of thermal throttling. The 2 ms slack lets a 60/90/120 Hz vsync land on it.
+ */
+const LITE_FRAME_MS = ctx.settings.lite ? 1000 / 30 - 2 : 0;
+/** The cap's own wait, taken back out before the ladder reads an interval. */
+const LITE_CAP_SLACK_MS = ctx.settings.lite ? 1000 / 30 - 1000 / 60 : 0;
+/**
+ * `?fps=1`: a corner readout a player can screenshot from a phone — presented
+ * fps, CPU cost of the frame (simulation + draw submission), and the adaptive
+ * render scale. High CPU ms means the phone is CPU-bound; low CPU ms with low
+ * fps means the GPU is the limit.
+ */
+const fpsMeter: HTMLDivElement | null = new URLSearchParams(location.search).get('fps') === '1'
+  ? Object.assign(document.createElement('div'), { className: 'kr-fps' })
+  : null;
+if (fpsMeter) {
+  fpsMeter.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:200;pointer-events:none;' +
+    'font:600 11px/1.3 ui-monospace,monospace;color:#9f9;background:rgba(0,0,0,.6);padding:4px 6px;border-radius:6px';
+  document.body.appendChild(fpsMeter);
+}
+let fpsFrames = 0;
+let fpsFrom = 0;
+function updateFpsMeter(now: number, presented: boolean) {
+  if (presented) fpsFrames++;
+  if (!fpsFrom) fpsFrom = now;
+  if (now - fpsFrom < 500 || !fpsMeter) return;
+  const fps = (fpsFrames * 1000) / (now - fpsFrom);
+  fpsFrames = 0;
+  fpsFrom = now;
+  const info = ctx.renderer?.info?.render;
+  fpsMeter.textContent =
+    `${fps.toFixed(0)} fps · cpu ${renderCostEma.toFixed(1)}ms · scale ${SCALE_RUNGS[scaleRung]}` +
+    ` · ${info ? info.calls + ' draws' : ''} · ${ctx.settings.lite ? 'lite' : 'q' + ctx.settings.quality}`;
+}
 /** A blocking menu covers the scene; the pause screen is excluded — it is see-through over the race. */
 function menuThrottled(): boolean {
   const m = document.documentElement.dataset.menu;
@@ -727,6 +768,7 @@ function menuThrottled(): boolean {
 
 function frame(now: number) {
   requestAnimationFrame(frame);
+  if (LITE_FRAME_MS > 0 && now - last < LITE_FRAME_MS) return;
 
   const raw = (now - last) / 1000;
   last = now;
@@ -812,7 +854,7 @@ function frame(now: number) {
 
     // The interval only describes a frame the player saw if the tick before it
     // also presented, the clock was running, and it is not a tab-switch hole.
-    const intervalMs = raw * 1000;
+    const intervalMs = raw * 1000 - LITE_CAP_SLACK_MS;
     const usable = racing && lastTickPresented && !frozen &&
       intervalMs > 1 && intervalMs < 100;
     if (usable) {
@@ -890,6 +932,7 @@ function frame(now: number) {
     }
   }
   lastTickPresented = presented;
+  if (fpsMeter) updateFpsMeter(now, presented);
 
   if (ctx.frame === 8) {
     (window as any).__gameReady = true;

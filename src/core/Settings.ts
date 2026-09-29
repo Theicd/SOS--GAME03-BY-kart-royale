@@ -664,8 +664,8 @@ const LITE: Partial<Settings> = {
   lite: true, bloom: false, motionBlur: false, dof: false, ssao: false, shadows: false,
   particleDensity: 0.15, foliageDensity: 0.08,
 };
-const LITE_BUDGET_MPX = 0.3;
-const LITE_MIN_RATIO = 0.8;
+const LITE_BUDGET_MPX = 0.22;
+const LITE_MIN_RATIO = 0.7;
 
 let deviceProfile: DeviceProfile | null = null;
 
