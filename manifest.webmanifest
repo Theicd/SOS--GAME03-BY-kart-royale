@@ -1,11 +1,19 @@
 {
+  "id": "./",
   "name": "Kart Royale",
   "short_name": "Kart Royale",
-  "description": "A kart racer with no art assets — every texture, mesh and sound generated in code.",
+  "description": "Online kart racing - up to 4 players, instant rooms.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "landscape",
   "background_color": "#05070d",
-  "theme_color": "#05070d"
+  "theme_color": "#05070d",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
