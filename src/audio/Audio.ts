@@ -41,6 +41,7 @@ import {
 } from '../types';
 import { EPS, mtof, Synth } from './Synth';
 import { Music } from './Music';
+import { soundLevels, soundVersion } from './SoundPrefs';
 
 // --- module scope scratch: nothing in update() allocates ---------------------
 const _camPos = new THREE.Vector3();
@@ -916,6 +917,7 @@ export class Audio implements System {
   private failed = false;
   private unsub: (() => void) | null = null;
   private lastVolume = -1;
+  private levelsVer = -1;
   private tunnel = -1;
   private sidechain = -1;
   private lastAt = new Map<string, number>();
@@ -1098,6 +1100,11 @@ export class Audio implements System {
     if (vol !== this.lastVolume) {
       this.lastVolume = vol;
       s.setMasterVolume(vol);
+    }
+    if (soundVersion() !== this.levelsVer) {
+      this.levelsVer = soundVersion();
+      const l = soundLevels();
+      s.setBusLevels(l.music, l.engine, l.sfx);
     }
 
     this.syncListener(ctx, now);

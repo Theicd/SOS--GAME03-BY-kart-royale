@@ -276,6 +276,15 @@ export class Synth {
     return this.ctx.currentTime;
   }
 
+  /** Player trims per bus, 0..1, applied over the mix levels set above. */
+  setBusLevels(music: number, engine: number, sfx: number) {
+    const t = this.ctx.currentTime;
+    this.music.gain.setTargetAtTime(0.38 * clamp(music, 0, 1), t, 0.04);
+    this.engine.gain.setTargetAtTime(0.347 * clamp(engine, 0, 1), t, 0.04);
+    this.sfx.gain.setTargetAtTime(0.9 * clamp(sfx, 0, 1), t, 0.04);
+    this.lead.gain.setTargetAtTime(clamp(sfx, 0, 1), t, 0.04);
+  }
+
   setMasterVolume(v: number) {
     const g = this.master.gain;
     const t = this.ctx.currentTime;

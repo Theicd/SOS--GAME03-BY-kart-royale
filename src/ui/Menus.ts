@@ -14,6 +14,7 @@ import { RaceState, Quality, type Ctx, type IKart, type KartStats } from '../typ
 import { QUALITY_KEY } from '../core/Settings';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
+import { SoundMenu } from './SoundMenu';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -163,6 +164,7 @@ export class Menus {
 
   /** the controls screen — its own overlay, not one of the four `screens` */
   private controls: ControlsMenu;
+  private sound: SoundMenu;
   /** title-screen copy follows the device actually in use; see `syncTouchCopy` */
   private titlePrompt!: HTMLDivElement;
   private titleHint!: HTMLDivElement;
@@ -189,6 +191,7 @@ export class Menus {
     // below is on `this.root`, and a tap on a SETTING must not also start the
     // race. Its own listeners stop propagation before the touch pad sees it.
     this.controls = new ControlsMenu(parent);
+    this.sound = new SoundMenu(parent);
     this.screens = {
       title: this.buildTitle(),
       select: this.buildSelect(),
@@ -228,6 +231,7 @@ export class Menus {
     });
     this.fillRoster(ctx);
     this.controls.attach(ctx);
+    this.sound.attach(ctx);
     const q = ctx.settings.quality;
     const current = ctx.settings.lite ? 'lite'
       : q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
@@ -258,7 +262,7 @@ export class Menus {
     // The controls screen owns input while it is up: it is a sibling overlay,
     // not one of the four screens, so nothing below it may act on a confirm.
     this.controls.update(ctx);
-    if (this.controls.open) {
+    if (this.controls.open || this.sound.open) {
       this.tapConfirm = false;
       this.prevSteer = input.steer;
       return;
@@ -637,6 +641,8 @@ export class Menus {
     // steer can fix that without abandoning the race they are in.
     const ctrl = el('div', 'kr-btn', list, 'Controls');
     ctrl.onclick = () => this.controls.show();
+    const sound = el('div', 'kr-btn', list, 'Sound');
+    sound.onclick = () => this.sound.show();
     const restart = el('div', 'kr-btn', list, 'Restart race');
     restart.onclick = () => { this.localPause = false; this.forced = null; this.startRace(this.ctx); };
     const quit = el('div', 'kr-btn', list, 'Quit to title');
@@ -647,7 +653,7 @@ export class Menus {
       this.selecting = false;
       this.ctx.race.reset();
     };
-    this.buttons.pause = [resume, ctrl, restart, quit];
+    this.buttons.pause = [resume, ctrl, sound, restart, quit];
     return s;
   }
 
