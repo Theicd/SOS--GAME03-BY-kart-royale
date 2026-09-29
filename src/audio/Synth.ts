@@ -95,10 +95,19 @@ export class Synth {
    *   render, not from listening. An offline context implements every factory
    *   used below.
    */
-  constructor(volume: number, external?: BaseAudioContext) {
+  /**
+   * @param lowCost a larger output buffer and equal-power rival engines. The
+   *   'interactive' buffer is ~10 ms, and seven HRTF panners plus the plate on
+   *   a machine already busy with WebGL underrun it — heard as a crackling,
+   *   broken-up mix rather than as any single bad sound.
+   */
+  readonly lowCost: boolean;
+
+  constructor(volume: number, external?: BaseAudioContext, lowCost = false) {
     const AC: typeof AudioContext =
       (globalThis as any).AudioContext || (globalThis as any).webkitAudioContext;
-    this.ctx = (external ?? new AC({ latencyHint: 'interactive' })) as AudioContext;
+    this.lowCost = lowCost;
+    this.ctx = (external ?? new AC({ latencyHint: lowCost ? 'playback' : 'interactive' })) as AudioContext;
     const ac = this.ctx;
 
     this.master = ac.createGain();

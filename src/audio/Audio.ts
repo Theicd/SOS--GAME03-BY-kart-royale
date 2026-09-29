@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import {
   BASE_TOP_SPEED,
   ItemKind,
+  Quality,
   RaceState,
   Surface,
   type Ctx,
@@ -182,7 +183,7 @@ class KartVoice {
     } else {
       // HRTF for engines: front/back discrimination is the entire point of
       // hearing a rival. Cheap equal-power is plenty for their one-shots.
-      this.enginePanner = s.panner('HRTF');
+      this.enginePanner = s.panner(s.lowCost ? 'equalpower' : 'HRTF');
       this.sfxPanner = s.panner('equalpower');
       this.enginePanner.connect(s.engine);
       this.sfxPanner.connect(s.sfx);
@@ -976,7 +977,8 @@ export class Audio implements System {
   /** Shared graph construction. Returns false if audio is unavailable. */
   private build(ac: BaseAudioContext | null, vol: number): boolean {
     try {
-      const s = new Synth(vol, ac ?? undefined);
+      const q = this.ctx?.settings?.quality ?? Quality.High;
+      const s = new Synth(vol, ac ?? undefined, q <= Quality.Medium);
       this.lastVolume = vol;
       // Bus-level sends: a touch of room on everything, opened up in the tunnel.
       //
