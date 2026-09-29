@@ -16,7 +16,7 @@ import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
-import { MOOD, MOOD_NAMES, type MoodId } from '../render/Mood';
+import { MOOD, MOOD_NAMES, WINTER, type MoodId } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -88,12 +88,7 @@ const LOGO_SVG = `
     <path id="krArc" d="M 196 224 Q 450 128 704 224" fill="none"/>
   </defs>
 
-  <g mask="url(#krFade)">
-    <g class="kr-logo-rays" opacity="0.8">
-      RAYS
-    </g>
-  </g>
-  <ellipse cx="450" cy="200" rx="420" ry="200" fill="url(#krBurst)"/>
+  BACKDROP
 
   <g filter="url(#krDrop)" transform="rotate(-2.4 450 210)">
     <!-- chequered banner, faded at both ends so it reads as a ribbon -->
@@ -117,6 +112,61 @@ const LOGO_SVG = `
           stroke-width="11" stroke-linecap="round"/>
   </g>
 </svg>`;
+
+function buildBackdrop() {
+  if (WINTER) return STORM_SVG;
+  return `<g mask="url(#krFade)">
+    <g class="kr-logo-rays" opacity="0.8">${buildRays()}</g>
+  </g>
+  <ellipse cx="450" cy="200" rx="420" ry="200" fill="url(#krBurst)"/>`;
+}
+
+const STORM_CLOUDS: [number, number, number, number][] = [
+  [180, 190, 150, 62], [300, 150, 170, 74], [450, 130, 200, 82], [600, 150, 170, 74], [720, 190, 150, 62],
+  [240, 245, 170, 56], [450, 235, 230, 66], [660, 245, 170, 56], [370, 190, 150, 60], [540, 190, 150, 60],
+];
+
+const STORM_SVG = `
+  <defs>
+    <radialGradient id="krCloudG" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#e6eef8" stop-opacity="0.8"/>
+      <stop offset="60%" stop-color="#8797b0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#3e4a60" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="krFlashG" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#cfeaff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#cfeaff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="krColdG" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#132238" stop-opacity="0.85"/>
+      <stop offset="65%" stop-color="#132238" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#132238" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="krCloudDark" cx="50%" cy="60%" r="60%">
+      <stop offset="0%" stop-color="#2a3448" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#2a3448" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="krCloudBlur" x="-20%" y="-40%" width="140%" height="180%"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="krBoltGlow" x="-50%" y="-20%" width="200%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="450" cy="200" rx="440" ry="200" fill="url(#krColdG)"/>
+  <g mask="url(#krFade)">
+    <ellipse class="kr-storm-flash" cx="260" cy="190" rx="260" ry="170" fill="url(#krFlashG)"/>
+    <ellipse class="kr-storm-flash kr-storm-flash-2" cx="660" cy="180" rx="260" ry="170" fill="url(#krFlashG)"/>
+    <g class="kr-storm-drift" filter="url(#krCloudBlur)">
+      ${STORM_CLOUDS.map(([x, y, rx, ry]) => `<ellipse cx="${x}" cy="${y + ry * 0.35}" rx="${rx}" ry="${ry * 0.8}" fill="url(#krCloudDark)"/>`).join('')}
+      ${STORM_CLOUDS.map(([x, y, rx, ry]) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="url(#krCloudG)"/>`).join('')}
+    </g>
+    <g fill="none" stroke="#eaf7ff" stroke-linejoin="round" stroke-linecap="round" filter="url(#krBoltGlow)">
+      <path class="kr-bolt" stroke-width="4" d="M 262 70 L 238 138 L 262 142 L 226 214 L 250 218 L 208 300"/>
+      <path class="kr-bolt" stroke-width="2.5" d="M 244 176 L 204 208 L 190 246"/>
+      <path class="kr-bolt kr-bolt-2" stroke-width="4" d="M 652 60 L 676 128 L 652 134 L 694 204 L 668 210 L 716 296"/>
+      <path class="kr-bolt kr-bolt-2" stroke-width="2.5" d="M 684 186 L 730 214 L 748 250"/>
+    </g>
+  </g>`;
 
 function buildRays() {
   let s = '';
@@ -443,7 +493,7 @@ export class Menus {
     wrap.style.display = 'flex';
     wrap.style.flexDirection = 'column';
     wrap.style.alignItems = 'center';
-    wrap.innerHTML = LOGO_SVG.replace('RAYS', buildRays());
+    wrap.innerHTML = LOGO_SVG.replace('BACKDROP', buildBackdrop());
     const ids = Object.keys(MOOD_NAMES) as MoodId[];
     const box = el('div', 'kr-track-box kr-track-' + MOOD, wrap);
     el('div', 'kr-track-label', box, 'Select map');

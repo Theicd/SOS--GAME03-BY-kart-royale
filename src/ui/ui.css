@@ -1641,6 +1641,17 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
 .kr-logo { width: min(112vmin, 88vw); max-height: 52vh; display: block; }
 .kr-logo .kr-logo-rays { animation: kr-rays 42s linear infinite; transform-origin: 450px 200px; }
 @keyframes kr-rays { to { transform: rotate(360deg); } }
+.kr-logo .kr-storm-drift { animation: kr-storm-drift 14s ease-in-out infinite alternate; }
+.kr-logo .kr-bolt, .kr-logo .kr-storm-flash { opacity: 0; animation: kr-bolt 6s linear infinite; }
+.kr-logo .kr-storm-flash { animation-name: kr-storm-flash; }
+.kr-logo .kr-bolt-2, .kr-logo .kr-storm-flash-2 { animation-duration: 8.5s; animation-delay: 2.4s; }
+@keyframes kr-storm-drift { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
+@keyframes kr-bolt { 0%, 86%, 100% { opacity: 0; } 87% { opacity: 0.75; } 88.5% { opacity: 0.12; } 90% { opacity: 0.7; } 93% { opacity: 0; } }
+@keyframes kr-storm-flash { 0%, 86%, 100% { opacity: 0; } 87% { opacity: 0.9; } 88.5% { opacity: 0.2; } 90% { opacity: 0.8; } 95% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .kr-logo .kr-storm-drift, .kr-logo .kr-storm-flash { animation: none; }
+  .kr-logo .kr-bolt { animation: none; opacity: 0.35; }
+}
 .kr-logo-wm { font-family: var(--f); font-weight: 900; }
 
 .kr-sub {
