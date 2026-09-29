@@ -9,8 +9,6 @@ import { QUALITY_KEY } from '../core/Settings';
 import type { ControlsMenu } from './ControlsMenu';
 import { buildSoundRows } from './SoundMenu';
 import { el } from './uiUtil';
-import { MOOD, MOOD_KEY, MOOD_NAMES, type MoodId } from '../render/Mood';
-
 const QUALITIES = [
   ['lite', 'Lite'],
   ['low', 'Low'],
@@ -39,20 +37,6 @@ export class SettingsMenu {
     done.onclick = () => this.close();
 
     const body = el('div', 'kc-body kst-body', this.root);
-
-    const map = this.section(body, 'Map');
-    const mseg = el('div', 'kc-seg kst-seg', map);
-    for (const id of Object.keys(MOOD_NAMES) as MoodId[]) {
-      const b = el('div', 'kc-opt' + (id === MOOD ? ' sel' : ''), mseg, MOOD_NAMES[id]);
-      b.onclick = () => {
-        if (id === MOOD) return;
-        try { localStorage.setItem(MOOD_KEY, id); } catch { /* storage blocked */ }
-        const url = new URL(location.href);
-        url.searchParams.delete('map');
-        location.replace(url.toString());
-      };
-    }
-    el('div', 'kst-note', map, 'Same circuit, different weather · the game reloads to apply');
 
     const gfx = this.section(body, 'Graphics');
     const seg = el('div', 'kc-seg kst-seg', gfx);

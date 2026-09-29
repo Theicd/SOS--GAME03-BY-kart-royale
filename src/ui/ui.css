@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Kart Royale — UI layer.
    Everything is scoped under .kr so nothing here can leak into the canvas host.
 
@@ -1778,6 +1778,29 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.25s ease, background 0.2s ease;
 }
+.kr-track { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: -1vmin; }
+.kr-track .kr-sub { margin-top: 0; }
+.kr-track-arrow {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 30px;
+  line-height: 1;
+  padding-bottom: 4px;
+  box-sizing: border-box;
+  color: #ffd98a;
+  background: rgba(16, 20, 38, 0.55);
+  border: 1px solid rgba(255, 217, 138, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.kr-track-arrow:hover { background: rgba(40, 46, 80, 0.8); }
+.kr-track-arrow:active { transform: scale(0.9); }
 .kr-dl { display: none; }
 html[data-can-install] .kr-dl { display: grid; }
 .kr-dl:hover { transform: translateY(2px) !important; }

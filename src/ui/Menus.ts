@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Menus — title, character select, pause and results.
  *
  * These are a *view* of `IRace.state`, never a driver of it: `state` is
@@ -16,7 +16,7 @@ import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
-import { MOOD, MOOD_NAMES } from '../render/Mood';
+import { MOOD, MOOD_KEY, MOOD_NAMES, type MoodId } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -444,7 +444,22 @@ export class Menus {
     wrap.style.flexDirection = 'column';
     wrap.style.alignItems = 'center';
     wrap.innerHTML = LOGO_SVG.replace('RAYS', buildRays());
-    el('div', 'kr-sub', wrap, MOOD_NAMES[MOOD] + ' Circuit');
+    const pick = el('div', 'kr-track', wrap);
+    const prev = el('div', 'kr-track-arrow', pick, '\u2039');
+    el('div', 'kr-sub', pick, MOOD_NAMES[MOOD] + ' Circuit');
+    const next = el('div', 'kr-track-arrow', pick, '\u203A');
+    const ids = Object.keys(MOOD_NAMES) as MoodId[];
+    const go = (step: number) => (e: Event) => {
+      e.stopPropagation();
+      const id = ids[(ids.indexOf(MOOD) + step + ids.length) % ids.length];
+      try { localStorage.setItem(MOOD_KEY, id); } catch { /* storage blocked */ }
+      const url = new URL(location.href);
+      url.searchParams.delete('map');
+      location.replace(url.toString());
+    };
+    prev.onclick = go(-1);
+    next.onclick = go(1);
+    for (const a of [prev, next]) a.onpointerdown = (e) => e.stopPropagation();
     // Built empty; `syncTouchCopy` fills it from `ctx.input.touch` every time
     // that flips. This used to run its OWN `matchMedia('(pointer: coarse)')`
     // probe once, in the constructor — which is exactly the check that fails on
