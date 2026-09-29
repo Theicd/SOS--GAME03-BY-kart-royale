@@ -16,7 +16,7 @@ import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
-import { MOOD, MOOD_KEY, MOOD_NAMES, type MoodId } from '../render/Mood';
+import { MOOD, MOOD_NAMES, type MoodId } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -445,40 +445,32 @@ export class Menus {
     wrap.style.alignItems = 'center';
     wrap.innerHTML = LOGO_SVG.replace('RAYS', buildRays());
     const ids = Object.keys(MOOD_NAMES) as MoodId[];
-    const SEEN = 'kr-seen-winter';
-    let seen = false;
-    try {
-      seen = localStorage.getItem(SEEN) === '1';
-      if (MOOD === 'winter') localStorage.setItem(SEEN, '1');
-    } catch { /* storage blocked */ }
     const box = el('div', 'kr-track-box kr-track-' + MOOD, wrap);
     el('div', 'kr-track-label', box, 'Select map');
     const pick = el('div', 'kr-track', box);
     const prev = el('div', 'kr-track-arrow', pick, '\u2039');
-    const name = el('div', 'kr-track-name', pick, MOOD_NAMES[MOOD]);
+    el('div', 'kr-track-name', pick, MOOD_NAMES[MOOD]);
     const next = el('div', 'kr-track-arrow', pick, '\u203A');
-    if (!seen) {
-      if (MOOD === 'winter') el('span', 'kr-new', name, 'New!');
-      else el('span', 'kr-new kr-new-arrow', next, 'New map');
-      box.classList.add('kr-track-hint');
-    }
     const dots = el('div', 'kr-track-dots', box);
     for (const id of ids) el('i', id === MOOD ? 'on' : '', dots);
+    const load = (id: MoodId) => {
+      const url = new URL(location.href);
+      if (id === 'sunset') url.searchParams.delete('map');
+      else url.searchParams.set('map', id);
+      location.replace(url.toString());
+    };
     const go = (step: number) => (e: Event) => {
       e.stopPropagation();
-      const id = ids[(ids.indexOf(MOOD) + step + ids.length) % ids.length];
-      try { localStorage.setItem(MOOD_KEY, id); } catch { /* storage blocked */ }
-      const fx = el('div', 'kr-mapfx kr-mapfx-' + id, document.body);
-      const card = el('div', 'kr-mapfx-card', fx);
-      if (id === 'winter' && !seen) el('div', 'kr-mapfx-burst', card, 'New map!');
-      el('div', 'kr-mapfx-name', card, MOOD_NAMES[id]);
-      el('div', 'kr-mapfx-sub', card, 'Circuit');
-      setTimeout(() => {
-        const url = new URL(location.href);
-        url.searchParams.delete('map');
-        location.replace(url.toString());
-      }, 1400);
+      load(ids[(ids.indexOf(MOOD) + step + ids.length) % ids.length]);
     };
+    if (MOOD === 'sunset') {
+      const promo = el('div', 'kr-newmap', inner);
+      el('div', 'kr-newmap-tag', promo, 'New map');
+      el('div', 'kr-newmap-name', promo, MOOD_NAMES.winter);
+      el('div', 'kr-newmap-go', promo, 'Play now \u203A');
+      promo.onpointerdown = (e) => e.stopPropagation();
+      promo.onclick = (e) => { e.stopPropagation(); load('winter'); };
+    }
     prev.onclick = go(-1);
     next.onclick = go(1);
     for (const a of [prev, next]) a.onpointerdown = (e) => e.stopPropagation();

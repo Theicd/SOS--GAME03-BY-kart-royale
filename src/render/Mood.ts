@@ -3,13 +3,11 @@
  * look and changes nothing; every other mood is a set of overrides applied at
  * boot by the systems that own the values (Sky, Water, PostFX, Lite).
  *
- * Chosen from Settings (localStorage) or `?map=winter`; switching reloads.
+ * Chosen with `?map=winter`; a plain launch is always Sunset. Switching reloads.
  */
 import * as THREE from 'three';
 
 export type MoodId = 'sunset' | 'winter';
-
-export const MOOD_KEY = 'kr-map';
 
 export const MOOD_NAMES: Record<MoodId, string> = {
   sunset: 'Sunset Bay',
@@ -19,7 +17,6 @@ export const MOOD_NAMES: Record<MoodId, string> = {
 function readMood(): MoodId {
   let v: string | null = null;
   try { v = new URLSearchParams(location.search).get('map'); } catch { /* no location */ }
-  if (!v) { try { v = localStorage.getItem(MOOD_KEY); } catch { /* storage blocked */ } }
   return v === 'winter' ? 'winter' : 'sunset';
 }
 
