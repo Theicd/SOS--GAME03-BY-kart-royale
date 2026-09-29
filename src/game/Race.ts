@@ -205,6 +205,15 @@ export class Race implements IRace {
   /** index into `karts` the human drives; see `selectKart` */
   private selected = 0;
 
+  /**
+   * Network play. A remote kart is posed from the wire by `netDrive` instead of
+   * being stepped by physics, the AI or the watchdogs. `multiplayer` also turns
+   * pause into a local overlay: the race is shared and cannot stop for one player.
+   */
+  remote: boolean[] = [];
+  multiplayer = false;
+  netDrive: ((ctx: Ctx, k: Kart, index: number, dt: number) => void) | null = null;
+
   // ---------------------------------------------------------------- lifecycle
 
   init(ctx: Ctx) {
@@ -310,7 +319,8 @@ export class Race implements IRace {
    * owns pole trade places, so the human always starts at the front.
    */
   private slotFor(i: number): number {
-    if (this.selected === 0) return i;
+    // every machine in a room must agree on the grid, so nobody gets pole for free
+    if (this.multiplayer || this.selected === 0) return i;
     if (i === this.selected) return 0;
     if (i === 0) return this.selected;
     return i;
@@ -378,6 +388,7 @@ export class Race implements IRace {
    * all), left the race suspended for good.
    */
   setPaused(paused: boolean) {
+    if (paused && this.multiplayer) return;
     if (paused) {
       if (this.state === RaceState.Racing || this.state === RaceState.Countdown) {
         this.prePause = this.state;
@@ -404,8 +415,9 @@ export class Race implements IRace {
     // --- pause --------------------------------------------------------------
     // The pause menu is owned by the UI, which toggles its own copy off the
     // same button edge; both sides therefore agree on every press.
-    const pausePressed = input.pausePressed && !this.pauseEdge;
+    const pausePressed = input.pausePressed && !this.pauseEdge && !this.multiplayer;
     this.pauseEdge = input.pausePressed;
+    if (this.multiplayer && this.state === RaceState.Paused) this.state = this.prePause;
     if (pausePressed) {
       if (this.state === RaceState.Racing || this.state === RaceState.Countdown) {
         this.prePause = this.state;
@@ -464,6 +476,11 @@ export class Race implements IRace {
       const k = this.karts[i];
       const p = this.prog[i];
       let steer = 0, throttle = 0, brake = 0, drift = false;
+
+      if (this.remote[i]) {
+        this.netDrive?.(ctx, k, i, dt);
+        continue;
+      }
 
       if (p.respawnT > 0) {
         // dropped in: hands off until the suspension has taken the landing
@@ -583,6 +600,7 @@ export class Race implements IRace {
       const k = this.karts[i];
       const p = this.prog[i];
       p.lapStart = 0;
+      if (this.remote[i]) continue;
       const hold = k.isPlayer ? p.hold : this.aiRocketHold(k);
       if (hold > 0.02 && hold < ROCKET_WINDOW) {
         // perfect launch
@@ -751,7 +769,7 @@ export class Race implements IRace {
     for (let i = 0; i < this.karts.length; i++) {
       const k = this.karts[i];
       const p = this.prog[i];
-      if (p.respawnT > 0) continue;
+      if (p.respawnT > 0 || this.remote[i]) continue;
 
       const bad = k.surface === Surface.Water || k.surface === Surface.OffTrack;
       p.badT = bad ? p.badT + dt : 0;

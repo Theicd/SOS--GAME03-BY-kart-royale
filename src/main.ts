@@ -20,6 +20,7 @@ import { Race } from './game/Race';
 import { ChaseCamera } from './game/Camera';
 import { HUD } from './ui/HUD';
 import { Audio } from './audio/Audio';
+import { startNet } from './net/SosNet';
 
 const parent = document.getElementById('app')!;
 
@@ -1047,6 +1048,8 @@ function installContextRecovery() {
     suspended = false;
   };
 }
+
+startNet(ctx);
 
 boot().catch((err) => {
   console.error('[boot] failed', err);

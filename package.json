@@ -15,6 +15,7 @@
   "type": "commonjs",
   "dependencies": {
     "n8ao": "^2.0.0",
+    "nostr-tools": "^2.25.2",
     "postprocessing": "^6.39.3",
     "simplex-noise": "^4.0.3",
     "three": "^0.185.1"

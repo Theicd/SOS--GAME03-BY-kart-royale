@@ -1138,6 +1138,38 @@ export class Kart implements IKart {
     this.applyWheelVisuals(0);
   }
 
+  /**
+   * A kart driven by someone else on the network: no physics, no input — the
+   * pose arrives already solved and only the visuals and the bookkeeping other
+   * systems read (t, forwardSpeed, surface, drift/boost flags) are derived here.
+   * Other karts still collide against it through `ACTIVE`.
+   */
+  netPose(
+    ctx: Ctx, dt: number, pos: THREE.Vector3, quat: THREE.Quaternion, vel: THREE.Vector3,
+    driftDir: number, driftTier: number, boosting: boolean, stunned: boolean, airborne: boolean,
+  ) {
+    this.track = ctx.track;
+    this.position.copy(pos);
+    this.quaternion.copy(quat);
+    this.velocity.copy(vel);
+    this.forward.set(0, 0, 1).applyQuaternion(quat);
+    this.right.set(1, 0, 0).applyQuaternion(quat);
+    this.up.set(0, 1, 0).applyQuaternion(quat);
+    this.yaw = Math.atan2(this.forward.x, this.forward.z);
+    this.forwardSpeed = vel.dot(this.forward);
+    const probe = ctx.track.probe(pos, this.t);
+    if (Number.isFinite(probe.t)) this.t = probe.t;
+    this.surface = probe.surface;
+    this.driftDir = driftDir;
+    this.driftTier = driftTier;
+    this.boostTime = boosting ? Math.max(this.boostTime, 0.1) : 0;
+    this.stunTime = stunned ? Math.max(this.stunTime, 0.1) : 0;
+    this.airborne = airborne;
+    const spin = this.forwardSpeed / DEFAULT_SUSPENSION.wheelRadius;
+    for (const w of this.suspension.wheels) w.spinRate = spin;
+    this.updateVisuals(Math.max(dt, 1 / 480));
+  }
+
   // ---------------------------------------------------------------------------
   // the frame step
   // ---------------------------------------------------------------------------

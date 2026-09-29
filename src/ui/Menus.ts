@@ -14,6 +14,7 @@ import { RaceState, Quality, type Ctx, type IKart, type KartStats } from '../typ
 import { QUALITY_KEY } from '../core/Settings';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
+import { netHooks } from '../net/NetHooks';
 
 export type ScreenName = 'none' | 'title' | 'select' | 'pause' | 'results';
 
@@ -213,6 +214,7 @@ export class Menus {
 
   init(ctx: Ctx) {
     this.ctx = ctx;
+    netHooks.beginRace = (index) => this.beginRace(ctx, index);
     // finish times are not on IRace, so we stamp them off the bus ourselves
     ctx.bus.on((e) => {
       if (e.type === 'finish') this.finishTimes.set(e.kart.id, ctx.race.raceTime);
@@ -391,6 +393,12 @@ export class Menus {
   }
 
   private startRace(ctx: Ctx) {
+    if (netHooks.requestStart?.()) return;
+    const n = ctx.race.karts.length;
+    this.beginRace(ctx, n > 0 ? Math.floor(Math.random() * n) : 0);
+  }
+
+  private beginRace(ctx: Ctx, index: number) {
     this.forced = null;
     this.localTitle = false;
     this.selecting = false;
@@ -398,8 +406,7 @@ export class Menus {
     this.resultsBuilt = false;
     this.resultsFinished = -1;
     this.finishTimes.clear();
-    const n = ctx.race.karts.length;
-    if (n > 0) this.selected = Math.floor(Math.random() * n);
+    this.selected = index;
     // Hand the choice over BEFORE resetting. This line is the whole point of
     // the select screen: without it `this.selected` only ever moved a CSS
     // highlight, and every race was driven in kart 0 whatever was clicked.
