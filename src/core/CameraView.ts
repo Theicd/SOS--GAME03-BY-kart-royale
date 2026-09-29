@@ -1,11 +1,8 @@
 /**
- * Chase or in-car view — the player's choice, shared by the camera rig, the
- * touch chip and the keyboard, and remembered across visits.
+ * Chase or in-car view — shared by the camera rig, the touch chip and the
+ * keyboard. Every visit opens in the car; the toggle lasts for the session.
  */
-const KEY = 'kr-cam';
-
-let cockpit = false;
-try { cockpit = localStorage.getItem(KEY) === 'cockpit'; } catch { /* storage blocked */ }
+let cockpit = true;
 
 const listeners = new Set<(on: boolean) => void>();
 
@@ -15,7 +12,6 @@ export function isCockpit(): boolean {
 
 export function toggleCockpit(): void {
   cockpit = !cockpit;
-  try { localStorage.setItem(KEY, cockpit ? 'cockpit' : 'chase'); } catch { /* storage blocked */ }
   for (const fn of listeners) fn(cockpit);
 }
 
