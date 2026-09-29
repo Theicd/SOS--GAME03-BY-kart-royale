@@ -21,6 +21,8 @@ import { ChaseCamera } from './game/Camera';
 import { HUD } from './ui/HUD';
 import { Audio } from './audio/Audio';
 import { startNet } from './net/SosNet';
+import { netHooks } from './net/NetHooks';
+import { installAppButton } from './ui/Install';
 
 const parent = document.getElementById('app')!;
 
@@ -210,6 +212,7 @@ async function boot() {
 
 /** Fades the boot curtain once a real frame is actually on screen. */
 function dismissBootScreen() {
+  netHooks.booted = true;
   const boot = document.getElementById('boot');
   if (!boot) return;
   boot.classList.add('done');
@@ -1049,6 +1052,7 @@ function installContextRecovery() {
   };
 }
 
+installAppButton();
 startNet(ctx);
 
 boot().catch((err) => {

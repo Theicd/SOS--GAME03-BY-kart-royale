@@ -6,11 +6,16 @@
  *                  took the request over (the race will start via beginRace).
  *   beginRace    — installed by Menus: clear every menu flag and start a race
  *                  driving kart `index`.
+ *   booted       — the first real frame is on screen (shaders compiled). Until
+ *                  then this machine cannot race, so the room must not start
+ *                  a countdown for it.
  */
 export const netHooks: {
   requestStart: (() => boolean) | null;
   beginRace: ((index: number) => void) | null;
+  booted: boolean;
 } = {
   requestStart: null,
   beginRace: null,
+  booted: false,
 };

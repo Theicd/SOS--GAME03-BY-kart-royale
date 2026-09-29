@@ -562,6 +562,17 @@ export class Race implements IRace {
 
   // ---------------------------------------------------------------- countdown
 
+  /** Seconds of countdown left; 0 once the lights are out. */
+  get countdownLeft(): number {
+    return this.state === RaceState.Countdown ? this.countdownT : 0;
+  }
+
+  /** Join a room's countdown already in progress instead of restarting it. */
+  syncCountdown(seconds: number) {
+    if (this.state !== RaceState.Countdown) return;
+    this.countdownT = Math.max(0.05, Math.min(COUNTDOWN, seconds));
+  }
+
   private tickCountdown(ctx: Ctx, dt: number) {
     const prev = Math.ceil(this.countdownT);
     this.countdownT -= dt;

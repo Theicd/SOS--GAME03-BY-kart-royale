@@ -56,10 +56,16 @@ const ROOM_TTL = 20;
 const HEARTBEAT_MS = 6000;
 const LISTEN_MS = 2500;
 const JOIN_TIMEOUT_MS = 12000;
-const ICE_WAIT_MS = 2500;
+const ICE_WAIT_MS = 4000;
 const POSE_HZ = 20;
 const INTERP_DELAY_MS = 110;
 const POSE_BYTES = 42;
+/** Lobby: never start sooner than this after the first call, to catch arrivals a beat apart. */
+const GATHER_MIN_MS = 1500;
+/** Lobby: stop waiting for players still loading after this; they join the next race. */
+const GATHER_MAX_MS = 15000;
+/** Host sitting on the results board with others in the room rolls the next race after this. */
+const AUTO_NEXT_MS = 12000;
 
 type Role = 'searching' | 'host' | 'client';
 
@@ -75,6 +81,8 @@ interface Peer {
   st: RTCDataChannel | null;
   idx: number;
   open: boolean;
+  /** host side: the client has finished loading and can race */
+  ready: boolean;
 }
 
 interface Sample {
@@ -120,7 +128,16 @@ class SosNet {
   private host: Peer | null = null;
   private joining: Peer | null = null;
   private myIdx = -1;
-  private pendingStart: number | null = null;
+  private pendingStart: { idx: number; cd: number } | null = null;
+  /** host: lobby window — 0 when not gathering */
+  private gatherFrom = 0;
+  private resultsSince = 0;
+  /** client: 'ready' has been sent to the current host */
+  private sentReady = false;
+  private spectating = false;
+  private lobbyText = '';
+  /** host: asked for another race while still Finished; roll it when the board is up */
+  private wantNext = false;
 
   private samples: Sample[][] = [];
   private heartbeat = 0;
@@ -150,7 +167,7 @@ class SosNet {
     this.listen();
     setTimeout(() => void this.matchmake(), LISTEN_MS);
     setInterval(() => this.sendPoses(), 1000 / POSE_HZ);
-    setInterval(() => this.applyPendingStart(), 250);
+    setInterval(() => this.tick(), 250);
     addEventListener('pagehide', () => this.leave());
   }
 
@@ -257,8 +274,8 @@ class SosNet {
 
   private tryJoin(hostPk: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const pc = new RTCPeerConnection({ iceServers: ICE });
-      const peer: Peer = { hostSide: false, pk: hostPk, sid: randId(), pc, ctl: null, st: null, idx: -1, open: false };
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const peer: Peer = { hostSide: false, pk: hostPk, sid: randId(), pc, ctl: null, st: null, idx: -1, open: false, ready: false };
       this.joining = peer;
       let settled = false;
       const finish = (ok: boolean) => {
@@ -296,6 +313,8 @@ class SosNet {
     for (const p of this.peers.values()) this.dropPeer(p, false);
     this.role = 'client';
     this.host = peer;
+    this.sentReady = false;
+    this.gatherFrom = 0;
     clearInterval(this.heartbeat);
     this.refresh();
   }
@@ -305,8 +324,8 @@ class SosNet {
     if (msg.type === 'offer' && typeof msg.sdp === 'string') {
       if (this.role !== 'host' || this.peers.has(from)) return;
       if (this.humans() >= MAX_HUMANS || this.joining) { this.signal(from, { type: 'full', sid: msg.sid }); return; }
-      const pc = new RTCPeerConnection({ iceServers: ICE });
-      const peer: Peer = { hostSide: true, pk: from, sid: msg.sid, pc, ctl: null, st: null, idx: -1, open: false };
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const peer: Peer = { hostSide: true, pk: from, sid: msg.sid, pc, ctl: null, st: null, idx: -1, open: false, ready: false };
       this.peers.set(from, peer);
       pc.ondatachannel = (e) => {
         if (e.channel.label === 'ctl') peer.ctl = e.channel;
@@ -384,6 +403,10 @@ class SosNet {
     this.race.multiplayer = false;
     this.samples = [];
     this.myIdx = -1;
+    this.spectating = false;
+    this.lobbyText = '';
+    this.gatherFrom = 0;
+    this.wantNext = false;
   }
 
   private send(peer: Peer, m: object) {
@@ -399,16 +422,85 @@ class SosNet {
 
   // ------------------------------------------------------------ race flow
 
+  /*
+   * Start rules (host decides, clients follow):
+   *   - Nobody is put in a race before their game has finished loading
+   *     (`ready`). Connecting happens seconds before that.
+   *   - Starting a race opens a lobby window: it waits until every connected
+   *     player is ready (and at least GATHER_MIN_MS), or GATHER_MAX_MS for
+   *     anyone still loading. Latecomers never reset the room:
+   *       · ready during the countdown  -> take a free AI kart and join the
+   *                                        same countdown where it stands;
+   *       · ready once the race is on   -> watch it live, race the next one.
+   *   - With others in the room the host's results board rolls the next race
+   *     after AUTO_NEXT_MS.
+   */
+
   private onClientJoined(peer: Peer) {
     if (this.humans() > MAX_HUMANS) { this.send(peer, { t: 'full' }); this.dropPeer(peer, false); return; }
+    this.race.multiplayer = true;
     this.announce();
-    this.startAll();
+    this.refresh();
   }
 
-  /** Host: hand every human a kart and put the whole room on the grid. */
+  private isRacing(): boolean {
+    const s = this.race.state;
+    return s === RaceState.Countdown || s === RaceState.Racing || s === RaceState.Finished;
+  }
+
+  private onPeerReady(peer: Peer) {
+    if (peer.ready) return;
+    peer.ready = true;
+    const s = this.race.state;
+    if (s === RaceState.Countdown && this.race.countdownLeft > 1) this.joinCountdown(peer);
+    else if (this.isRacing()) this.spectate(peer);
+    else this.gather();
+    this.refresh();
+  }
+
+  private gather() {
+    if (!this.gatherFrom) this.gatherFrom = now();
+  }
+
+  private readyCount(): { ready: number; total: number } {
+    let ready = netHooks.booted ? 1 : 0, total = 1;
+    for (const p of this.peers.values()) {
+      if (!p.open) continue;
+      total++;
+      if (p.ready) ready++;
+    }
+    return { ready, total };
+  }
+
+  private freeKart(): number {
+    const n = this.race.karts.length;
+    const taken = new Set<number>([this.race.selectedKart]);
+    for (const p of this.peers.values()) if (p.idx >= 0) taken.add(p.idx);
+    const free = Array.from({ length: n }, (_, i) => i).filter((i) => !taken.has(i));
+    return free.length ? free[Math.floor(Math.random() * free.length)] : -1;
+  }
+
+  private joinCountdown(peer: Peer) {
+    const idx = this.freeKart();
+    if (idx < 0) { this.spectate(peer); return; }
+    peer.idx = idx;
+    this.race.remote[idx] = true;
+    this.samples[idx] = [];
+    this.send(peer, { t: 'start', idx, cd: this.race.countdownLeft });
+  }
+
+  private spectate(peer: Peer) {
+    if (peer.idx >= 0) { this.race.remote[peer.idx] = false; this.samples[peer.idx] = []; }
+    peer.idx = -1;
+    this.send(peer, { t: 'spectate' });
+  }
+
+  /** Host: hand every ready human a kart and put the whole room on the grid. */
   private startAll() {
     const n = this.race.karts.length;
-    if (!n) { this.pendingStart = -2; return; }
+    if (!n || !netHooks.beginRace) return;
+    this.gatherFrom = 0;
+    this.resultsSince = 0;
     const pool = Array.from({ length: n }, (_, i) => i);
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -417,62 +509,123 @@ class SosNet {
     const mine = pool.pop()!;
     const remote: boolean[] = new Array(n).fill(false);
     for (const p of this.peers.values()) {
-      if (!p.open) continue;
+      p.idx = -1;
+      if (!p.open || !p.ready) continue;
       p.idx = pool.pop()!;
       remote[p.idx] = true;
     }
-    this.race.multiplayer = remote.some(Boolean);
+    this.race.multiplayer = this.peers.size > 0;
     this.race.remote = remote;
     this.samples = [];
     this.myIdx = mine;
-    for (const p of this.peers.values()) if (p.open) this.send(p, { t: 'start', idx: p.idx });
-    this.begin(mine);
+    for (const p of this.peers.values()) {
+      if (p.idx >= 0) this.send(p, { t: 'start', idx: p.idx, cd: 0 });
+    }
+    netHooks.beginRace(mine);
+    this.lobbyText = '';
     this.refresh();
+  }
+
+  /** Host: lobby window and the results auto-roll, polled from `tick`. */
+  private hostTick() {
+    if (!this.peers.size) { this.gatherFrom = 0; this.resultsSince = 0; this.lobbyText = ''; return; }
+    const s = this.race.state;
+    if (s === RaceState.Results && !this.gatherFrom) {
+      if (this.wantNext) { this.wantNext = false; this.gather(); }
+      else if (!this.resultsSince) this.resultsSince = now();
+      else if (now() - this.resultsSince > AUTO_NEXT_MS) this.gather();
+    } else if (s !== RaceState.Results) {
+      this.resultsSince = 0;
+    }
+    if (!this.gatherFrom) return;
+    const { ready, total } = this.readyCount();
+    const waited = now() - this.gatherFrom;
+    const text = `Starting · ${ready}/${total} ready`;
+    if (text !== this.lobbyText) {
+      this.lobbyText = text;
+      for (const p of this.peers.values()) this.send(p, { t: 'wait', text });
+      this.refresh();
+    }
+    if (!netHooks.booted) return;
+    if ((ready >= total && waited >= GATHER_MIN_MS) || waited >= GATHER_MAX_MS) this.startAll();
   }
 
   private onCtl(peer: Peer, m: any) {
     if (!m || typeof m.t !== 'string') return;
     if (this.role === 'client' && peer === this.host) {
-      if (m.t === 'start' && Number.isInteger(m.idx)) this.clientStart(m.idx);
+      if (m.t === 'start' && Number.isInteger(m.idx)) {
+        this.clientStart(m.idx, Number(m.cd) || 0);
+      } else if (m.t === 'spectate') {
+        this.clientSpectate();
+      } else if (m.t === 'wait' && typeof m.text === 'string') {
+        this.lobbyText = m.text.slice(0, 40);
+        this.refresh();
+      }
       return;
     }
-    if (this.role === 'host' && m.t === 'req') {
-      const s = this.race.state;
-      if (s === RaceState.Countdown || s === RaceState.Racing) this.send(peer, { t: 'start', idx: peer.idx });
-      else this.startAll();
+    if (this.role !== 'host') return;
+    if (m.t === 'ready') this.onPeerReady(peer);
+    else if (m.t === 'req') {
+      if (!peer.ready) return;
+      if (this.isRacing()) { if (peer.idx < 0) this.spectate(peer); }
+      else this.gather();
     }
   }
 
-  private clientStart(idx: number) {
+  private clientStart(idx: number, cd: number) {
     const n = this.race.karts.length;
-    if (!n) { this.pendingStart = idx; return; }
+    if (!n || !netHooks.beginRace) { this.pendingStart = { idx, cd }; return; }
     if (idx < 0 || idx >= n) return;
+    this.pendingStart = null;
+    this.spectating = false;
+    this.lobbyText = '';
     this.myIdx = idx;
     this.race.multiplayer = true;
     this.race.remote = Array.from({ length: n }, (_, i) => i !== idx);
     this.samples = [];
-    this.begin(idx);
+    netHooks.beginRace(idx);
+    if (cd > 0) this.race.syncCountdown(cd - 0.15);
     this.refresh();
   }
 
-  private begin(idx: number) {
-    if (!netHooks.beginRace) { this.pendingStart = idx; return; }
-    this.pendingStart = null;
-    netHooks.beginRace(idx);
+  /** Client: the room is mid-race — show it live behind the title, race the next one. */
+  private clientSpectate() {
+    const n = this.race.karts.length;
+    this.spectating = true;
+    this.lobbyText = '';
+    this.myIdx = -1;
+    this.race.multiplayer = true;
+    this.race.remote = Array.from({ length: n }, () => true);
+    this.samples = [];
+    this.refresh();
   }
 
-  private applyPendingStart() {
-    if (this.pendingStart === null || !this.race.karts.length || !netHooks.beginRace) return;
-    const p = this.pendingStart;
-    this.pendingStart = null;
-    if (p === -2) this.startAll();
-    else if (this.role === 'client') this.clientStart(p);
-    else this.begin(p);
+  private tick() {
+    if (this.role === 'client') {
+      const h = this.host;
+      if (h && !this.sentReady && netHooks.booted && this.race.karts.length && h.ctl?.readyState === 'open') {
+        this.sentReady = true;
+        this.send(h, { t: 'ready' });
+      }
+      const p = this.pendingStart;
+      if (p && this.race.karts.length && netHooks.beginRace) this.clientStart(p.idx, p.cd);
+    } else if (this.role === 'host') {
+      this.hostTick();
+    }
   }
 
   private requestStart(): boolean {
-    if (this.role === 'client' && this.host) { this.send(this.host, { t: 'req' }); return true; }
-    if (this.role === 'host' && this.peers.size > 0) { this.startAll(); return true; }
+    if (this.role === 'client' && this.host) {
+      this.send(this.host, { t: 'req' });
+      return true;
+    }
+    if (this.role === 'host' && this.peers.size > 0) {
+      // Finished = this player is over the line but others may still be
+      // driving; the next race is rolled once the board is up.
+      if (this.race.state === RaceState.Finished) this.wantNext = true;
+      else if (!this.isRacing()) this.gather();
+      return true;
+    }
     return false;
   }
 
@@ -498,8 +651,9 @@ class SosNet {
   }
 
   private sendPoses() {
-    if (!this.race.multiplayer || this.myIdx < 0 || !this.race.karts.length) return;
+    if (!this.race.multiplayer || !this.race.karts.length) return;
     if (this.role === 'client') {
+      if (this.myIdx < 0) return;
       const st = this.host?.st;
       if (st?.readyState === 'open' && st.bufferedAmount < 16384) st.send(this.packet([this.myIdx]));
       return;
@@ -507,7 +661,7 @@ class SosNet {
     if (this.role !== 'host') return;
     const n = this.race.karts.length;
     for (const p of this.peers.values()) {
-      if (!p.open || p.st?.readyState !== 'open' || p.st.bufferedAmount > 16384) continue;
+      if (!p.ready || p.st?.readyState !== 'open' || p.st.bufferedAmount > 16384) continue;
       const list: number[] = [];
       for (let i = 0; i < n; i++) {
         if (i === p.idx) continue;
@@ -589,8 +743,14 @@ class SosNet {
   }
 
   private refresh() {
-    if (this.role === 'client') this.setBadge('ONLINE · in room');
-    else if (this.role === 'host' && this.peers.size > 0) this.setBadge(`ONLINE ${this.humans()}/${MAX_HUMANS} · host`);
+    if (this.role === 'client') {
+      if (this.lobbyText) this.setBadge(`ONLINE · ${this.lobbyText}`);
+      else if (this.spectating) this.setBadge('ONLINE · race in progress — you join the next one');
+      else if (!netHooks.booted) this.setBadge('ONLINE · in room · loading…');
+      else this.setBadge('ONLINE · in room');
+    } else if (this.role === 'host' && this.peers.size > 0) {
+      this.setBadge(`ONLINE ${this.humans()}/${MAX_HUMANS} · host${this.lobbyText ? ' · ' + this.lobbyText : ''}`);
+    }
     else if (this.role === 'host') this.setBadge('Room open · waiting for players');
     else this.setBadge('Looking for a room…');
   }
