@@ -2323,50 +2323,33 @@ html[data-can-install] .kr-dl { display: grid; }
 .kr-track-dots i.on { width: 20px; background: #ffd98a; }
 .kr-track-winter .kr-track-dots i.on { background: #8fdcff; }
 
-/* New map card: Sunset title only */
-.kr-newmap {
-  position: fixed; right: 3vmin; bottom: 4vmin; z-index: 5;
-  width: clamp(150px, 24vmin, 220px); padding: 14px 14px 12px; box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  border-radius: 14px; overflow: hidden; cursor: pointer; pointer-events: auto; user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  background: linear-gradient(160deg, #3a7fc0 0%, #17365f 55%, #0b1a33 100%);
-  border: 2px solid rgba(180, 230, 255, 0.85);
-  box-shadow: 0 0 22px rgba(110, 200, 255, 0.55), 0 8px 24px rgba(0, 0, 0, 0.5);
-  animation: kr-newmap-in 0.6s cubic-bezier(0.2, 1.5, 0.4, 1) 0.4s both, kr-newmap-glow 1.8s ease-in-out 1s infinite;
-  transition: transform 0.15s ease;
+/* New map row: Sunset title only, under the play buttons */
+.kr-btn.kr-newmap {
+  margin-top: 1.4vmin; width: min(100%, calc(22em + 1.6vmin)); min-height: 48px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; gap: 0.9em;
+  padding: 0.55em 1.2em; letter-spacing: 0.16em; text-indent: 0;
+  border-color: rgba(255, 217, 138, 0.6);
+  animation: kr-newmap-glow 2s ease-in-out infinite;
 }
-.kr-newmap:hover { transform: translateY(-3px); }
-.kr-newmap:active { transform: scale(0.96); }
 .kr-newmap::after {
-  content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
-  transform: skewX(-20deg); animation: kr-newmap-shine 2.6s ease-in-out 1.2s infinite;
+  content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 30%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 236, 190, 0.35), transparent);
+  transform: skewX(-20deg); animation: kr-newmap-shine 3s ease-in-out 0.8s infinite;
 }
 .kr-newmap-tag {
-  padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase;
-  color: #fff; background: linear-gradient(180deg, #ff5d5d, #e0243a); box-shadow: 0 2px 8px rgba(224, 36, 58, 0.6);
-  animation: kr-newmap-pulse 0.9s ease-in-out infinite;
+  padding: 0.25em 0.6em 0.3em; border-radius: 999px; font-size: 0.72em; letter-spacing: 0.12em; line-height: 1;
+  color: #fff; background: linear-gradient(180deg, #ff6a5a, #d8232f);
+  box-shadow: 0 0 10px rgba(255, 80, 70, 0.6); animation: kr-newmap-pulse 1s ease-in-out infinite;
 }
-.kr-newmap-name {
-  font-size: clamp(17px, 2.8vmin, 24px); font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1;
-  background: linear-gradient(180deg, #fff 20%, #bdeeff 60%, #7cc9ff 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-}
-.kr-newmap-go { font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #ffd98a; }
-@keyframes kr-newmap-in { from { opacity: 0; transform: translateX(40px) scale(0.8); } to { opacity: 1; transform: none; } }
+.kr-newmap-name { color: #ffd98a; }
+.kr-newmap-go { font-size: 0.85em; opacity: 0.75; }
+.kr-newmap:hover .kr-newmap-name { color: inherit; }
 @keyframes kr-newmap-glow {
-  0%, 100% { box-shadow: 0 0 16px rgba(110, 200, 255, 0.45), 0 8px 24px rgba(0, 0, 0, 0.5); }
-  50% { box-shadow: 0 0 34px rgba(140, 215, 255, 0.9), 0 8px 24px rgba(0, 0, 0, 0.5); }
+  0%, 100% { box-shadow: 0 0.6vmin 1.8vmin rgba(20, 10, 4, 0.5), 0 0 0 rgba(255, 196, 90, 0); }
+  50% { box-shadow: 0 0.6vmin 1.8vmin rgba(20, 10, 4, 0.5), 0 0 2.4vmin rgba(255, 196, 90, 0.45); }
 }
-@keyframes kr-newmap-shine { 0% { left: -60%; } 45%, 100% { left: 130%; } }
+@keyframes kr-newmap-shine { 0% { left: -40%; } 45%, 100% { left: 130%; } }
 @keyframes kr-newmap-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-@media (max-aspect-ratio: 3/4) {
-  .kr-newmap { right: 50%; bottom: 3vh; transform: translateX(50%); animation: kr-newmap-glow 1.8s ease-in-out infinite; }
-  .kr-newmap:hover { transform: translateX(50%); }
-  .kr-newmap:active { transform: translateX(50%) scale(0.96); }
-}
 @media (prefers-reduced-motion: reduce) {
-  .kr-newmap, .kr-newmap::after, .kr-newmap-tag { animation: none; }
+  .kr-btn.kr-newmap, .kr-newmap::after, .kr-newmap-tag { animation: none; }
 }

@@ -513,14 +513,6 @@ export class Menus {
       e.stopPropagation();
       load(ids[(ids.indexOf(MOOD) + step + ids.length) % ids.length]);
     };
-    if (MOOD === 'sunset') {
-      const promo = el('div', 'kr-newmap', inner);
-      el('div', 'kr-newmap-tag', promo, 'New map');
-      el('div', 'kr-newmap-name', promo, MOOD_NAMES.winter);
-      el('div', 'kr-newmap-go', promo, 'Play now \u203A');
-      promo.onpointerdown = (e) => e.stopPropagation();
-      promo.onclick = (e) => { e.stopPropagation(); load('winter'); };
-    }
     prev.onclick = go(-1);
     next.onclick = go(1);
     for (const a of [prev, next]) a.onpointerdown = (e) => e.stopPropagation();
@@ -546,6 +538,14 @@ export class Menus {
       if (this.online) this.startRace(this.ctx);
       else this.setOnline(true);
     };
+    if (MOOD === 'sunset') {
+      const promo = el('div', 'kr-btn kr-newmap', wrap);
+      el('span', 'kr-newmap-tag', promo, 'New');
+      el('span', 'kr-newmap-name', promo, MOOD_NAMES.winter);
+      el('span', 'kr-newmap-go', promo, 'Play \u203A');
+      promo.onpointerdown = (e) => e.stopPropagation();
+      promo.onclick = (e) => { e.stopPropagation(); load('winter'); };
+    }
     const top = el('div', 'kr-topbar', s);
     const help = el('div', 'kr-topbar-help', top);
     this.titleGlyphs = el('div', 'kr-glyphs', help);

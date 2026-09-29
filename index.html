@@ -128,6 +128,17 @@
         font-size: 2.5vmin; letter-spacing: .22em; text-transform: uppercase;
         color: rgba(233,240,250,.62); min-height: 1.2em;
       }
+      @media (max-aspect-ratio: 3/4) {
+        .boot-mark { font-size: 16vw; }
+        .boot-map { font-size: 4.4vw; }
+        .boot-step { font-size: 3.4vw; }
+        .boot-bar { width: 66vw; }
+      }
+      @media (max-height: 500px) and (min-aspect-ratio: 3/2) {
+        .boot-mark { font-size: 14vh; }
+        .boot-map { font-size: 4.6vh; }
+        .boot-step { font-size: 3.6vh; }
+      }
       @media (prefers-reduced-motion: reduce) {
         #boot, .boot-bar i { transition: none; }
         .boot-bar::after { animation: none; }
