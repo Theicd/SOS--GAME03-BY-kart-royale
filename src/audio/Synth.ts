@@ -195,7 +195,7 @@ export class Synth {
     this.engineDuck.connect(this.engineSide);
 
     this.engine = ac.createGain();
-    this.engine.gain.value = 0.434;
+    this.engine.gain.value = 0.347;
     this.engine.connect(this.engineDuck);
 
     // The charge tone's own path. The presence bell is not decoration: the
