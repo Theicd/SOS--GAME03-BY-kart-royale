@@ -1732,11 +1732,35 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   opacity: 0.82;
 }
 
-.kr-gear {
+.kr-topbar {
   position: absolute;
   z-index: 3;
   top: calc(12px + env(safe-area-inset-top, 0px));
+  left: calc(14px + env(safe-area-inset-left, 0px));
   right: calc(12px + env(safe-area-inset-right, 0px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+.kr-topbar-help {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.kr-topbar .kr-glyphs { margin-top: 0; gap: clamp(10px, 2.4vmin, 24px); }
+.kr-topbar .kr-gl { font-size: clamp(10px, 1.4vmin, 14px); gap: 4px; }
+.kr-topbar .kr-gl > span { width: clamp(30px, 4.6vmin, 42px); height: clamp(30px, 4.6vmin, 42px); }
+.kr-topbar .kr-hint {
+  margin-top: 0;
+  line-height: 2.1;
+  text-align: left;
+  color: rgba(248, 242, 230, 0.6);
+}
+.kr-topbar .kr-hint:empty { display: none; }
+.kr-gear {
+  flex: none;
   width: 48px;
   height: 48px;
   display: grid;
