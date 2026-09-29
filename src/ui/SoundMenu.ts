@@ -17,6 +17,7 @@ export class SoundMenu {
 
   private root: HTMLDivElement;
   private ctx: Ctx | null = null;
+  private refresh: () => void;
 
   constructor(parent: HTMLElement) {
     const style = document.createElement('style');
@@ -31,31 +32,7 @@ export class SoundMenu {
     done.onclick = () => this.close();
 
     const body = el('div', 'kc-body ks-body', this.root);
-    for (const r of ROWS) {
-      const row = el('div', 'ks-row', body);
-      el('div', 'kc-row-l', row, r.label);
-      const input = el('input', 'ks-range', row) as HTMLInputElement;
-      input.type = 'range';
-      input.min = '0';
-      input.max = '100';
-      input.step = '5';
-      const val = el('div', 'ks-val', row);
-      const show = () => {
-        val.textContent = `${input.value}%`;
-        input.style.setProperty('--fill', `${input.value}%`);
-      };
-      input.value = String(Math.round(soundLevels()[r.key] * 100));
-      show();
-      // Arrow keys belong to the slider while it has focus, not to the kart.
-      input.addEventListener('keydown', (e) => {
-        e.stopPropagation();
-        if (e.key === 'Escape') this.close();
-      });
-      input.oninput = () => {
-        setSoundLevel(r.key, Number(input.value) / 100);
-        show();
-      };
-    }
+    this.refresh = buildSoundRows(body, () => this.close());
 
     // TouchControls listens on window; keep slider drags from steering.
     for (const n of [head, body]) {
@@ -71,6 +48,7 @@ export class SoundMenu {
   show() {
     if (this.open) return;
     this.open = true;
+    this.refresh();
     this.root.classList.add('on');
     document.documentElement.dataset.kcOpen = '';
   }
@@ -83,6 +61,45 @@ export class SoundMenu {
     delete document.documentElement.dataset.kcOpen;
     this.ctx?.bus.emit({ type: 'ui', name: 'confirm' });
   }
+}
+
+/**
+ * One slider row per bus, appended to `parent`. Shared by this screen and the
+ * settings sheet; returns a function that re-reads the saved levels, since the
+ * other sheet may have moved them.
+ */
+export function buildSoundRows(parent: HTMLElement, onEscape: () => void): () => void {
+  const syncs: (() => void)[] = [];
+  for (const r of ROWS) {
+    const row = el('div', 'ks-row', parent);
+    el('div', 'kc-row-l', row, r.label);
+    const input = el('input', 'ks-range', row);
+    input.type = 'range';
+    input.min = '0';
+    input.max = '100';
+    input.step = '5';
+    const val = el('div', 'ks-val', row);
+    const show = () => {
+      val.textContent = `${input.value}%`;
+      input.style.setProperty('--fill', `${input.value}%`);
+    };
+    syncs.push(() => {
+      input.value = String(Math.round(soundLevels()[r.key] * 100));
+      show();
+    });
+    // Arrow keys belong to the slider while it has focus, not to the kart.
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') onEscape();
+    });
+    input.oninput = () => {
+      setSoundLevel(r.key, Number(input.value) / 100);
+      show();
+    };
+  }
+  const sync = () => { for (const s of syncs) s(); };
+  sync();
+  return sync;
 }
 
 const CSS = `

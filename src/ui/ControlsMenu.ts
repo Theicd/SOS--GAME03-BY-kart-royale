@@ -228,7 +228,13 @@ export class ControlsMenu {
     delete document.documentElement.dataset.kcOpen;
     this.pad?.setPreview(false);
     this.ctx?.bus.emit({ type: 'ui', name: 'confirm' });
+    const back = this.onClose;
+    this.onClose = null;
+    back?.();
   }
+
+  /** One-shot: called after the next close, so a parent sheet can reopen. */
+  onClose: (() => void) | null = null;
 
   private async chooseScheme(id: Scheme) {
     const pad = this.pad;

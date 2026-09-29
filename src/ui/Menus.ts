@@ -10,11 +10,11 @@
  *
  * `?ui=title|select|pause|results` forces a screen, for capture and review.
  */
-import { RaceState, Quality, type Ctx, type IKart, type KartStats } from '../types';
-import { QUALITY_KEY } from '../core/Settings';
+import { RaceState, type Ctx, type IKart, type KartStats } from '../types';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
+import { SettingsMenu } from './SettingsMenu';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -165,12 +165,12 @@ export class Menus {
   /** the controls screen — its own overlay, not one of the four `screens` */
   private controls: ControlsMenu;
   private sound: SoundMenu;
+  private settings: SettingsMenu;
   /** title-screen copy follows the device actually in use; see `syncTouchCopy` */
   private titlePrompt!: HTMLDivElement;
   private titleHint!: HTMLDivElement;
   private titleGlyphs!: HTMLDivElement;
   private touchCopy: boolean | null = null;
-  private qualityBtns: HTMLDivElement[] = [];
   /** title: play-mode buttons; see `setOnline` */
   private soloBtn!: HTMLDivElement;
   private onlineBtn!: HTMLDivElement;
@@ -192,6 +192,7 @@ export class Menus {
     // race. Its own listeners stop propagation before the touch pad sees it.
     this.controls = new ControlsMenu(parent);
     this.sound = new SoundMenu(parent);
+    this.settings = new SettingsMenu(parent, this.controls);
     this.screens = {
       title: this.buildTitle(),
       select: this.buildSelect(),
@@ -232,10 +233,7 @@ export class Menus {
     this.fillRoster(ctx);
     this.controls.attach(ctx);
     this.sound.attach(ctx);
-    const q = ctx.settings.quality;
-    const current = ctx.settings.lite ? 'lite'
-      : q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
-    for (const b of this.qualityBtns) b.classList.toggle('sel', b.dataset.q === current);
+    this.settings.attach(ctx);
     // `?online=1` opens straight into online mode — the entry a lobby page links to.
     if (new URLSearchParams(location.search).get('online') === '1') this.setOnline(true);
   }
@@ -262,7 +260,7 @@ export class Menus {
     // The controls screen owns input while it is up: it is a sibling overlay,
     // not one of the four screens, so nothing below it may act on a confirm.
     this.controls.update(ctx);
-    if (this.controls.open || this.sound.open) {
+    if (this.controls.open || this.sound.open || this.settings.open) {
       this.tapConfirm = false;
       this.prevSteer = input.steer;
       return;
@@ -469,24 +467,8 @@ export class Menus {
     };
     this.titleGlyphs = el('div', 'kr-glyphs', wrap);
     this.titleHint = el('div', 'kr-hint', wrap);
-    const qrow = el('div', 'kr-quality', wrap);
-    el('div', 'kr-quality-label', qrow, 'Graphics');
-    const qbtns = el('div', 'kr-quality-btns', qrow);
-    for (const [label, value] of [['Lite', 'lite'], ['Low', 'low'], ['Medium', 'medium'], ['High', 'high']] as const) {
-      const b = el('div', 'kr-btn kr-btn-q', qbtns, label);
-      b.dataset.q = value;
-      // Settings are baked into textures and shaders at boot, so a change needs a reload.
-      b.onclick = (e) => {
-        e.stopPropagation();
-        try { localStorage.setItem(QUALITY_KEY, value); } catch { /* storage blocked */ }
-        const url = new URL(location.href);
-        url.searchParams.delete('quality');
-        location.replace(url.toString());
-      };
-      this.qualityBtns.push(b);
-    }
-    const cbtn = el('div', 'kr-btn kr-btn-controls', wrap, 'Controls');
-    cbtn.onclick = (e) => { e.stopPropagation(); this.controls.show(); };
+    const sbtn = el('div', 'kr-btn kr-btn-controls kr-btn-settings', wrap, '\u2699  Settings');
+    sbtn.onclick = (e) => { e.stopPropagation(); this.settings.show(); };
     this.syncTouchCopy(false);
     return s;
   }
