@@ -8,7 +8,7 @@ import type { Kart } from '../kart/Kart';
 import { netHooks } from './NetHooks';
 
 /**
- * Online rooms, stage 1 ג€” standalone, no accounts.
+ * Online rooms, stage 1 — standalone, no accounts.
  *
  * Same shape as the SOS zombie lobby: the first player in opens a room, the
  * next ones find it and join. Up to four humans share one race of eight karts;
@@ -35,19 +35,18 @@ const RELAYS = [
   'wss://relay.snort.social',
 ];
 /**
- * Same list the SOS app ships in `config.js`: STUN for direct links, and the
- * public Open Relay TURN (UDP/TCP 80, 443, TLS 443) for networks where a
- * direct link cannot form ג€” mobile carriers, office firewalls, symmetric NAT.
+ * STUN for direct links, TURN for networks where a direct link cannot form
+ * (mobile carriers, office firewalls, symmetric NAT). freeTURN's public
+ * account is capped at 2 Mbit/s per peer; a full room's poses are ~7 KB/s.
+ * The Open Relay static account SOS lists in `config.js` no longer authenticates.
  */
 const ICE: RTCIceServer[] = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: 'stun:stun.cloudflare.com:3478' },
-  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turns:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: ['turn:freeturn.net:3478', 'turn:freeturn.net:3478?transport=tcp'], username: 'free', credential: 'free' },
+  { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
 ];
-/** `?relay=1` forces every link through TURN ג€” for testing the fallback path. */
+/** `?relay=1` forces every link through TURN — for testing the fallback path. */
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: ICE,
   iceTransportPolicy: new URLSearchParams(location.search).get('relay') === '1' ? 'relay' : 'all',
@@ -57,7 +56,7 @@ const ROOM_TTL = 20;
 const HEARTBEAT_MS = 6000;
 const LISTEN_MS = 2500;
 const JOIN_TIMEOUT_MS = 12000;
-const ICE_WAIT_MS = 4000;
+const ICE_WAIT_MS = 2500;
 const POSE_HZ = 20;
 const INTERP_DELAY_MS = 110;
 const POSE_BYTES = 42;
@@ -143,7 +142,7 @@ class SosNet {
       borderRadius: '999px', border: '1px solid rgba(255,255,255,0.18)',
     } as Partial<CSSStyleDeclaration>);
     document.body.appendChild(this.badge);
-    this.setBadge('Looking for a roomג€¦');
+    this.setBadge('Looking for a room…');
 
     this.race.netDrive = (c, k, i, dt) => this.drive(c, k, i, dt);
     netHooks.requestStart = () => this.requestStart();
@@ -243,7 +242,7 @@ class SosNet {
 
   /**
    * Two players arriving at once both find nothing and both open a room. A
-   * host still alone moves into the other room ג€” the fuller one wins, ties go
+   * host still alone moves into the other room — the fuller one wins, ties go
    * to the lower key so exactly one side moves.
    */
   private async mergeLoneHost() {
@@ -258,7 +257,7 @@ class SosNet {
 
   private tryJoin(hostPk: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const pc = new RTCPeerConnection({ iceServers: ICE });
       const peer: Peer = { hostSide: false, pk: hostPk, sid: randId(), pc, ctl: null, st: null, idx: -1, open: false };
       this.joining = peer;
       let settled = false;
@@ -306,7 +305,7 @@ class SosNet {
     if (msg.type === 'offer' && typeof msg.sdp === 'string') {
       if (this.role !== 'host' || this.peers.has(from)) return;
       if (this.humans() >= MAX_HUMANS || this.joining) { this.signal(from, { type: 'full', sid: msg.sid }); return; }
-      const pc = new RTCPeerConnection(RTC_CONFIG);
+      const pc = new RTCPeerConnection({ iceServers: ICE });
       const peer: Peer = { hostSide: true, pk: from, sid: msg.sid, pc, ctl: null, st: null, idx: -1, open: false };
       this.peers.set(from, peer);
       pc.ondatachannel = (e) => {
@@ -590,10 +589,10 @@ class SosNet {
   }
 
   private refresh() {
-    if (this.role === 'client') this.setBadge('ONLINE ֲ· in room');
-    else if (this.role === 'host' && this.peers.size > 0) this.setBadge(`ONLINE ${this.humans()}/${MAX_HUMANS} ֲ· host`);
-    else if (this.role === 'host') this.setBadge('Room open ֲ· waiting for players');
-    else this.setBadge('Looking for a roomג€¦');
+    if (this.role === 'client') this.setBadge('ONLINE · in room');
+    else if (this.role === 'host' && this.peers.size > 0) this.setBadge(`ONLINE ${this.humans()}/${MAX_HUMANS} · host`);
+    else if (this.role === 'host') this.setBadge('Room open · waiting for players');
+    else this.setBadge('Looking for a room…');
   }
 }
 
