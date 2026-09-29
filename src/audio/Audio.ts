@@ -911,6 +911,8 @@ export class Audio implements System {
   private charge: DriftCharge | null = null;
   private voices: KartVoice[] = [];
   private voiceKarts: IKart[] = [];
+  private voiceGrid: IKart | null = null;
+  private voicePlayer: IKart | null = null;
   private failed = false;
   private unsub: (() => void) | null = null;
   private lastVolume = -1;
@@ -1032,12 +1034,20 @@ export class Audio implements System {
   private ensureVoices(ctx: Ctx) {
     const karts = ctx.race?.karts;
     if (!karts || karts.length === 0) return;
-    if (this.voices.length === karts.length && this.voiceKarts[0] === karts[0]) return;
+    // The rich/lean split is baked into each voice, so a change of player kart
+    // between races has to rebuild them or the old kart keeps the player engine.
+    const playerKart = karts.find((k) => k.isPlayer) ?? null;
+    if (this.voiceGrid === karts[0] && this.voicePlayer === playerKart) return;
     for (const v of this.voices) v.dispose();
     this.voices.length = 0;
     this.voiceKarts.length = 0;
+    this.voiceGrid = karts[0];
+    this.voicePlayer = playerKart;
     const s = this.synth!;
     for (let i = 0; i < karts.length; i++) {
+      // Every rival engine runs its oscillators continuously, audible or not;
+      // on a weak device that constant load is what breaks the mix up.
+      if (s.lowCost && !karts[i].isPlayer) continue;
       this.voices.push(new KartVoice(s, karts[i].isPlayer, i));
       this.voiceKarts.push(karts[i]);
     }

@@ -48,6 +48,7 @@
  */
 import * as THREE from 'three';
 import { feel } from '../core/Feel';
+import { isCockpit, toggleCockpit } from '../core/CameraView';
 import { BASE_TOP_SPEED, RaceState, type Ctx, type IKart, type System, type TrackSample } from '../types';
 
 // ===========================================================================
@@ -454,6 +455,14 @@ const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
 const _box = new THREE.Box3();
 const _euler = new THREE.Euler();
+const _kUp = new THREE.Vector3();
+
+/** In-car eye, relative to the helmet: a touch above and ahead of its centre so
+ *  the lens sits at the visor rather than inside the shell. */
+const COCKPIT_UP = 0.06;
+const COCKPIT_FWD = 0.14;
+/** Metres the aim point drops over 20 m ahead — the road, not the sky. */
+const COCKPIT_PITCH = 1.1;
 
 type CamMode = 'chase' | 'wide' | 'close';
 /** Track.sample() takes a scratch target; the ITrack interface hides it. */
@@ -646,6 +655,16 @@ export class ChaseCamera implements System {
   private propStage = 0;
   private wideBlockers: THREE.Object3D[] | null = null;
 
+  // --- in-car view ----------------------------------------------------------
+  private wasInCar = false;
+  private cockUp = new THREE.Vector3(0, 1, 0);
+  private hasCockUp = false;
+  private helmetKart: IKart | null = null;
+  private helmets = new Map<IKart, THREE.Object3D[]>();
+  private onCamKey = (e: KeyboardEvent) => {
+    if (e.code === 'KeyC' && !e.repeat) toggleCockpit();
+  };
+
   // =======================================================================
   //  Lifecycle
   // =======================================================================
@@ -657,6 +676,7 @@ export class ChaseCamera implements System {
     ctx.camera.fov = FOV_BASE;
     ctx.camera.updateProjectionMatrix();
     this.resize(ctx.width, ctx.height);
+    addEventListener('keydown', this.onCamKey);
 
     // Bound once. The cast reaches Track's scratch-target overload, which
     // ITrack omits; an implementation without it still returns a correct
@@ -696,7 +716,11 @@ export class ChaseCamera implements System {
     });
   }
 
-  dispose() { this.unsub?.(); this.unsub = null; }
+  dispose() {
+    this.unsub?.();
+    this.unsub = null;
+    removeEventListener('keydown', this.onCamKey);
+  }
 
   resize(w: number, h: number) {
     this.aspect = h > 0 && w > 0 ? w / h : REF_ASPECT;
@@ -807,6 +831,19 @@ export class ChaseCamera implements System {
 
     const cinematic = this.poseCinematic(ctx, k, mode, state, dt);
 
+    const inCar = isCockpit() && !cinematic && mode === 'chase' && state === RaceState.Racing;
+    this.hideHelmet(k, inCar);
+    if (inCar) {
+      this.poseCockpit(ctx, k, dt);
+      return;
+    }
+    if (this.wasInCar) {
+      // Back from the cockpit is a cut, not a 5 m slew through the chassis.
+      this.wasInCar = false;
+      this.hasPrevEye = false;
+      this.hasPrevQuat = false;
+    }
+
     if (!cinematic) {
       // Chase: constrain the eye, THEN solve the orientation. Everything that
       // moves the lens gets to move it first, and the composition is built on
@@ -858,6 +895,47 @@ export class ChaseCamera implements System {
         .applyQuaternion(ctx.camera.quaternion);
       ctx.camera.position.add(_tmp);
     }
+  }
+
+  /** The driver's view: eye at the visor, looking down the kart's own axis. */
+  private poseCockpit(ctx: Ctx, k: IKart, dt: number) {
+    this.wasInCar = true;
+    _kUp.set(0, 1, 0).applyQuaternion(k.quaternion);
+    const helmet = this.helmetOf(k)[0];
+    if (helmet) helmet.getWorldPosition(_eye);
+    else _eye.copy(k.position).addScaledVector(_kUp, 0.9);
+    _eye.addScaledVector(_kUp, COCKPIT_UP).addScaledVector(k.forward, COCKPIT_FWD);
+    // Suspension chatter goes straight into the roll otherwise; a short filter
+    // on the up vector keeps the horizon steady without lagging the corners.
+    if (!this.hasCockUp) { this.cockUp.copy(_kUp); this.hasCockUp = true; }
+    this.cockUp.lerp(_kUp, 1 - Math.exp(-dt * 12)).normalize();
+    _aim.copy(_eye).addScaledVector(k.forward, 20).addScaledVector(this.cockUp, -COCKPIT_PITCH);
+    _m.lookAt(_eye, _aim, this.cockUp);
+    ctx.camera.position.copy(_eye);
+    ctx.camera.quaternion.setFromRotationMatrix(_m);
+    this.prevEye.copy(_eye);
+    this.prevQuat.copy(ctx.camera.quaternion);
+  }
+
+  /** The player's own helmet and visor fill the lens from inside; hide them in-car. */
+  private hideHelmet(k: IKart, hide: boolean) {
+    if (this.helmetKart !== k) {
+      for (const o of this.helmetOf(this.helmetKart)) o.visible = true;
+      this.helmetKart = k;
+    }
+    for (const o of this.helmetOf(k)) o.visible = !hide;
+  }
+
+  private helmetOf(k: IKart | null): THREE.Object3D[] {
+    if (!k) return [];
+    let list = this.helmets.get(k);
+    if (!list) {
+      list = ['driverHelmet', 'driverVisor']
+        .map((n) => k.object.getObjectByName(n))
+        .filter((o): o is THREE.Object3D => !!o);
+      this.helmets.set(k, list);
+    }
+    return list;
   }
 
   /** First frame only: there is no previous shot, so everything starts on the

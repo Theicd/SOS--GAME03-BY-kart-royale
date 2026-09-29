@@ -713,6 +713,12 @@ function settleDescent(): boolean {
 }
 
 let last = performance.now();
+/** A blocking menu covers the scene; the pause screen is excluded — it is see-through over the race. */
+function menuThrottled(): boolean {
+  const m = document.documentElement.dataset.menu;
+  return m === 'title' || m === 'select' || m === 'results';
+}
+
 function frame(now: number) {
   requestAnimationFrame(frame);
 
@@ -759,6 +765,8 @@ function frame(now: number) {
     // no present this frame
   } else if (skipRender > 0 && maySkip) {
     skipRender--;
+  } else if (maySkip && menuThrottled() && ctx.frame % 3 !== 0) {
+    // behind a full-screen menu: a third of the frames, so the menu animates smoothly
   } else {
     presented = true;
     try {

@@ -484,7 +484,7 @@ export class Menus {
       this.titleGlyphs.innerHTML = '';
       this.titleHint.innerHTML =
         '<b>&#8592;</b><b>&#8594;</b> steer &nbsp;&nbsp; <b>&#8593;</b> accelerate &nbsp;&nbsp; ' +
-        '<b>Shift</b> drift &nbsp;&nbsp; <b>Space</b> item &nbsp;&nbsp; <b>Esc</b> pause';
+        '<b>Shift</b> drift &nbsp;&nbsp; <b>Space</b> item &nbsp;&nbsp; <b>C</b> camera &nbsp;&nbsp; <b>Esc</b> pause';
     }
   }
 

@@ -85,6 +85,7 @@
  */
 import { RaceState, type Ctx } from '../types';
 import { DEFAULTS, TUTORIAL_VERSION, load, save, type ControlPrefsData, type Hand, type Scheme } from './ControlPrefs';
+import { isCockpit, onCockpitChange, toggleCockpit } from './CameraView';
 
 export interface TouchState {
   /** the input contract: -1 full LEFT .. +1 full RIGHT. Unfiltered. */
@@ -389,6 +390,15 @@ export class TouchControls {
       e.preventDefault();
       e.stopPropagation();
       this.setAuto(!this.auto);
+      this.pulse?.([12]);
+    });
+    const camChip = root.querySelector<HTMLElement>('.tc-cam')!;
+    camChip.classList.toggle('on', isCockpit());
+    onCockpitChange((on) => camChip.classList.toggle('on', on));
+    camChip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleCockpit();
       this.pulse?.([12]);
     });
     this.pauseChip.addEventListener('pointerdown', (e) => {
@@ -1477,6 +1487,7 @@ const MARKUP = `
 <div class="tc-top">
   <div class="tc-chip tc-pause" data-btn="pause">II</div>
   <div class="tc-chip tc-auto on">AUTO</div>
+  <div class="tc-chip tc-cam">CAM</div>
 </div>
 
 <div class="tc-cluster">
