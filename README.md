@@ -6,9 +6,20 @@
 
 **A Mario Kart-style racer that runs in the browser: two maps, online multiplayer, and a lightweight mode for phones.**
 
-[![Play now](https://img.shields.io/badge/▶%20PLAY%20NOW-ffc84e?style=for-the-badge&labelColor=1a0f09)](https://theicd.github.io/SOS--GAME03-BY-kart-royale/)
-[![Original game](https://img.shields.io/badge/Original%20by-Ryan%20Campbell-181425?style=for-the-badge&logo=github)](https://github.com/ryancampbell/kart-royale)
-[![License MIT](https://img.shields.io/badge/License-MIT-5ab8ff?style=for-the-badge)](LICENSE)
+<br/>
+
+<a href="https://theicd.github.io/SOS--GAME03-BY-kart-royale/"><img src="docs/sos/play-now.svg" alt="PLAY NOW" width="460"/></a>
+
+**Free · Plays in your browser · No download · Desktop and mobile**
+
+<a href="https://theicd.github.io/SOS--GAME03-BY-kart-royale/"><img src="docs/sos/play-sunset.svg" alt="Play Sunset Bay" width="220"/></a>&nbsp;&nbsp;<a href="https://theicd.github.io/SOS--GAME03-BY-kart-royale/?map=winter"><img src="docs/sos/play-winter.svg" alt="Play Winter Bay" width="220"/></a>
+
+<sub>Link: <a href="https://theicd.github.io/SOS--GAME03-BY-kart-royale/">theicd.github.io/SOS--GAME03-BY-kart-royale</a></sub>
+
+<br/>
+
+[![Original game](https://img.shields.io/badge/Original%20by-Ryan%20Campbell-181425?style=flat-square&logo=github)](https://github.com/ryancampbell/kart-royale)
+[![License MIT](https://img.shields.io/badge/License-MIT-5ab8ff?style=flat-square)](LICENSE)
 
 ![Three.js](https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)

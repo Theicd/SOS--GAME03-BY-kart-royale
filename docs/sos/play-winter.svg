@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="64" viewBox="0 0 220 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#24507e"/>
+      <stop offset="100%" stop-color="#0b1a33"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="214" height="58" rx="29" fill="url(#g)" stroke="#8fdcff" stroke-width="2.5"/>
+  <g stroke="#dff4ff" stroke-width="2.4" stroke-linecap="round">
+    <path d="M36 20 V44"/><path d="M25.6 26 L46.4 38"/><path d="M25.6 38 L46.4 26"/>
+  </g>
+  <text x="128" y="39" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="17" font-weight="800" letter-spacing="2" fill="#bdeeff">WINTER BAY</text>
+</svg>
