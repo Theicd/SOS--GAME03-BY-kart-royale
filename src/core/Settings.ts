@@ -672,7 +672,9 @@ export function createSettings(): Settings {
   const q: Quality = forced
     ? ({ low: Quality.Low, medium: Quality.Medium, high: Quality.High, ultra: Quality.Ultra }[forced] ??
        Quality.High)
-    : detectQuality(dev);
+    // Low until the player picks otherwise on the title screen: a phone or a
+    // weak laptop must run smoothly on first open, and detection guesses high.
+    : Quality.Low;
   const s: Settings = { quality: q, masterVolume: 0.8, ...PRESETS[q] };
   // ?scale=0.75 etc. lets the screenshot harness trade resolution for time
   const scale = parseFloat(params.get('scale') || '');

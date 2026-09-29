@@ -1151,7 +1151,7 @@ export class Audio implements System {
         const d = _rel.length();
         // Past this the panner has it 28 dB down; skip the whole voice rather
         // than push a dozen param events per frame for something inaudible.
-        if (d > 200) {
+        if (d > (s.lowCost ? 70 : 200)) {
           v.mute(now);
           continue;
         }

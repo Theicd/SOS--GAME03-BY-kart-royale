@@ -122,7 +122,7 @@ export class Synth {
     // normal play, mathematically incapable of clipping the DAC.
     const safety = ac.createWaveShaper();
     safety.curve = this.safetyCurve(0.86);
-    safety.oversample = '4x';
+    safety.oversample = lowCost ? 'none' : '4x';
     safety.connect(this.master);
 
     // `mix` came down 1.9 dB and this went up 1.0, so the compressors see 1.9 dB
@@ -216,7 +216,9 @@ export class Synth {
     // --- reverb -----------------------------------------------------------
     const conv = ac.createConvolver();
     conv.normalize = false;
-    conv.buffer = this.makeImpulseResponse(2.35, 2.6, 0.62);
+    conv.buffer = lowCost
+      ? this.makeImpulseResponse(0.9, 2.6, 0.62)
+      : this.makeImpulseResponse(2.35, 2.6, 0.62);
     // High-passing the send keeps engine rumble out of the tail; without this
     // the reverb turns to mud the moment the player is at full throttle.
     const sendHP = ac.createBiquadFilter();
@@ -445,7 +447,7 @@ export class Synth {
   shaper(k: number): WaveShaperNode {
     const w = this.ctx.createWaveShaper();
     w.curve = this.curve(k);
-    w.oversample = '2x';
+    w.oversample = this.lowCost ? 'none' : '2x';
     return w;
   }
 
