@@ -46,6 +46,7 @@ import {
 // @ts-ignore — n8ao ships no type declarations, and we may not add a .d.ts here.
 import { N8AOPostPass } from 'n8ao';
 import { Quality, type Ctx } from '../types';
+import { WINTER, WINTER_LOOK } from './Mood';
 
 /**
  * The fraction of the drawing buffer the depth-of-field effect runs its own
@@ -1275,6 +1276,7 @@ export class PostFX {
       // of the frame, which is where it is most visible and least wanted.
       grain: 0.009,
     });
+    if (WINTER) grade.grade.z = WINTER_LOOK.saturation;
     this.grade = grade;
     this.gradePass = new EffectPass(ctx.camera, grade);
     this.add(composer, this.gradePass);

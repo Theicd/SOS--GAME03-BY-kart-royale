@@ -16,6 +16,7 @@ import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
+import { MOOD, MOOD_NAMES } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet } from '../net/SosNet';
 
@@ -443,7 +444,7 @@ export class Menus {
     wrap.style.flexDirection = 'column';
     wrap.style.alignItems = 'center';
     wrap.innerHTML = LOGO_SVG.replace('RAYS', buildRays());
-    el('div', 'kr-sub', wrap, 'Sunset Bay Circuit');
+    el('div', 'kr-sub', wrap, MOOD_NAMES[MOOD] + ' Circuit');
     // Built empty; `syncTouchCopy` fills it from `ctx.input.touch` every time
     // that flips. This used to run its OWN `matchMedia('(pointer: coarse)')`
     // probe once, in the constructor — which is exactly the check that fails on

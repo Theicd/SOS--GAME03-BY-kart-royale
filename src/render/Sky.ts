@@ -87,6 +87,7 @@ import {
   hazeGlsl,
 } from './Atmosphere';
 import { TUNNEL_T0, TUNNEL_T1 } from '../world/TrackLayout';
+import { WINTER, WINTER_LOOK } from './Mood';
 
 // --- tuning ------------------------------------------------------------------
 
@@ -1639,6 +1640,7 @@ export class Sky implements System {
     // settled on is what the calibration should solve against.
     const exposure = ctx.renderer?.toneMappingExposure || 1.05;
     this.model = new AtmosphereModel(exposure);
+    if (WINTER) this.winterModel();
 
     // The cascade table is resolved first and then used by BOTH the shader
     // patches and `buildLights`, because the receiver-plane bias bakes each
@@ -1653,6 +1655,7 @@ export class Sky implements System {
     this.buildDome(ctx);
     this.buildFog(ctx);
     this.buildLights(ctx);
+    if (WINTER) this.winterScene();
     this.buildEnvironment(ctx);
 
     ctx.sun = this.sun;
@@ -1673,6 +1676,41 @@ export class Sky implements System {
     // The post stack has no reference to this object otherwise; `ctx.sun` alone
     // is not enough to place a light-shaft origin on screen.
     (ctx as any).sky = this;
+  }
+
+  // -- map mood ---------------------------------------------------------------
+
+  /** Before any shader is built: grey haze (fog + horizon), dim disc, grey clouds. */
+  private winterModel(): void {
+    const m = this.model, w = WINTER_LOOK;
+    m.hazePoly.forEach((p, i) => (i === 0 ? p.copy(w.haze) : p.set(0, 0, 0)));
+    m.hazeColor.copy(w.haze);
+    m.horizonColor.copy(w.overcastHorizon);
+    m.groundColor.copy(w.ground);
+    m.sunDiscColor.multiplyScalar(w.sunDiscScale);
+    m.cloudSunColor.copy(w.cloudSun);
+    m.cloudAmbientColor.copy(w.cloudAmbient);
+  }
+
+  /** After the lights exist, before the env map is baked from the dome. */
+  private winterScene(): void {
+    const w = WINTER_LOOK;
+    for (const c of this.cascades) {
+      c.light.color.set(w.sunColor);
+      c.light.intensity *= w.sunIntensity;
+    }
+    this.skyFill.color.set(w.fillColor);
+    this.skyFill.intensity *= w.fillIntensity;
+    for (const b of [this.bounce, this.lateralBounce]) {
+      b.color.set(w.bounceColor);
+      b.intensity *= w.bounceIntensity;
+    }
+    for (const c of this.probe.sh.coefficients) {
+      const y = 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z;
+      c.set(y + (c.x - y) * w.probeSaturation, y + (c.y - y) * w.probeSaturation,
+        y + (c.z - y) * w.probeSaturation);
+    }
+    this.probe.intensity *= w.probeIntensity;
   }
 
   // -- construction -----------------------------------------------------------
@@ -1802,6 +1840,10 @@ export class Sky implements System {
         uGainBlendPow: { value: u.gainBlendPow },
         uSunRadius: { value: m.sunAngularRadius },
         uCloudAmount: { value: 1 },
+        uCloudCover: { value: WINTER ? WINTER_LOOK.cloudCover : 0 },
+        uOcHz: { value: WINTER_LOOK.overcastHorizon.clone() },
+        uOcZn: { value: WINTER_LOOK.overcastZenith.clone() },
+        uOcAmt: { value: WINTER ? WINTER_LOOK.overcastAmount : 0 },
       },
       defines: { CLOUD_LAYERS: layers },
       vertexShader: SKY_VERTEX_SHADER,

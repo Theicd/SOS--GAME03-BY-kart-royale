@@ -1130,6 +1130,10 @@ uniform float uGainBlendEnd;
 uniform float uGainBlendPow;
 uniform float uSunRadius;
 uniform float uCloudAmount;
+uniform float uCloudCover;
+uniform vec3 uOcHz;
+uniform vec3 uOcZn;
+uniform float uOcAmt;
 
 varying vec3 vDir;
 
@@ -1181,6 +1185,8 @@ vec3 atmosphere(vec3 dir, float gamma) {
   // be. At 34% (what this was) the last pixel of sky sat 4x above the first
   // pixel of hazed sea down-sun — see HORIZON_WELD_BAND.
   col = mix(col, gHaze, 1.0 - smoothstep(0.0, ${gf(HORIZON_WELD_BAND)}, abs(mu)));
+  // Map mood overcast; uOcAmt is 0 on the authored sunset.
+  col = mix(col, mix(uOcHz, uOcZn, sqrt(clamp(mu, 0.0, 1.0))), uOcAmt);
   return col;
 }
 
@@ -1220,7 +1226,7 @@ vec4 cloudLayer(vec3 dir, float gamma, float height, float scale,
   float d = cloudField(p, warp);
   // low-frequency coverage modulation at an incommensurate scale — this is what
   // stops the 256px noise tile from reading as a grid across the sky
-  float cov = cover + (w3.z - 0.5) * 0.30;
+  float cov = cover - uCloudCover + (w3.z - 0.5) * 0.30;
   // THE DENSITY SLICE. The band was 0.13 wide against a coverage modulation of
   // +/-0.15, which meant most of the sky sat inside the ramp rather than on
   // either side of it: instead of clouds with edges, the dome carried a

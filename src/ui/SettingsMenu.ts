@@ -9,6 +9,7 @@ import { QUALITY_KEY } from '../core/Settings';
 import type { ControlsMenu } from './ControlsMenu';
 import { buildSoundRows } from './SoundMenu';
 import { el } from './uiUtil';
+import { MOOD, MOOD_KEY, MOOD_NAMES, type MoodId } from '../render/Mood';
 
 const QUALITIES = [
   ['lite', 'Lite'],
@@ -38,6 +39,20 @@ export class SettingsMenu {
     done.onclick = () => this.close();
 
     const body = el('div', 'kc-body kst-body', this.root);
+
+    const map = this.section(body, 'Map');
+    const mseg = el('div', 'kc-seg kst-seg', map);
+    for (const id of Object.keys(MOOD_NAMES) as MoodId[]) {
+      const b = el('div', 'kc-opt' + (id === MOOD ? ' sel' : ''), mseg, MOOD_NAMES[id]);
+      b.onclick = () => {
+        if (id === MOOD) return;
+        try { localStorage.setItem(MOOD_KEY, id); } catch { /* storage blocked */ }
+        const url = new URL(location.href);
+        url.searchParams.delete('map');
+        location.replace(url.toString());
+      };
+    }
+    el('div', 'kst-note', map, 'Same circuit, different weather · the game reloads to apply');
 
     const gfx = this.section(body, 'Graphics');
     const seg = el('div', 'kc-seg kst-seg', gfx);
@@ -124,7 +139,7 @@ const CSS = `
   text-transform: uppercase; color: #ffd27a;
 }
 .kst-seg { align-self: flex-start; }
-.kst-seg .kc-opt { min-width: 76px; min-height: 36px; }
+.kst-seg .kc-opt { min-width: 76px; min-height: 36px; white-space: nowrap; }
 .kst-note { font-size: clamp(10px, 1.6vmin, 13px); color: #a9b6c9; letter-spacing: .03em; }
 .kst-ctl { display: flex; align-items: center; gap: 12px; }
 .kst-open { margin-left: auto; min-height: 38px; padding: 0 18px; font-weight: 800; letter-spacing: .08em; }

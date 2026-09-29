@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WINTER, WINTER_LOOK } from './Mood';
 
 /**
  * Lite tier: swap the PBR materials for Lambert ones, keeping colour, texture
@@ -62,7 +63,7 @@ export function applyLiteMaterials(scene: THREE.Scene): number {
   // Lambert does not read `scene.environment`, which was most of the fill in
   // shade; a warm ambient stands in for it so the swapped surfaces are not dim.
   if (swapped.size) {
-    const fill = new THREE.AmbientLight(0xffe6cc, 0.9);
+    const fill = new THREE.AmbientLight(WINTER ? WINTER_LOOK.liteAmbient : 0xffe6cc, 0.9);
     fill.name = 'LiteFill';
     scene.add(fill);
   }

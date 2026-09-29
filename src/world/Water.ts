@@ -66,6 +66,7 @@
 import * as THREE from 'three';
 import type { Ctx } from '../types';
 import type { Shared } from './Props';
+import { WINTER } from '../render/Mood';
 
 export interface SeaField {
   /** world-space min corner (x,z) of the baked field */
@@ -122,7 +123,7 @@ export class Water {
       fragmentShader: FRAG,
       fog: true,
       side: THREE.FrontSide,
-      defines: { ENV_NONE: '' },
+      defines: WINTER ? { ENV_NONE: '', MOOD_WINTER: '' } : { ENV_NONE: '' },
     });
 
     this.mesh = new THREE.Mesh(geo, this.mat);
@@ -190,10 +191,11 @@ export class Water {
   private adoptEnv(env: THREE.Texture) {
     this.envTried = true;
     const m = env.mapping;
+    const mood = WINTER ? { MOOD_WINTER: '' } : {};
     if (m === THREE.CubeReflectionMapping || m === THREE.CubeRefractionMapping) {
-      this.mat.defines = { ENV_CUBE: '' };
+      this.mat.defines = { ENV_CUBE: '', ...mood };
     } else if (m === THREE.EquirectangularReflectionMapping || m === THREE.EquirectangularRefractionMapping) {
-      this.mat.defines = { ENV_EQUI: '' };
+      this.mat.defines = { ENV_EQUI: '', ...mood };
     } else return;
     this.mat.uniforms.uEnv.value = env;
     this.mat.uniforms.uEnvIntensity.value = 1;
@@ -344,11 +346,18 @@ varying vec3 vShore;
 #include <fog_pars_fragment>
 ${WAVES}
 
+#ifdef MOOD_WINTER
+const vec3 ZENITH  = vec3(0.1900, 0.2200, 0.2700);
+const vec3 HORIZON = vec3(0.3300, 0.3600, 0.4100);
+const vec3 SHALLOW = vec3(0.0700, 0.1800, 0.2000);
+const vec3 DEEP    = vec3(0.0150, 0.0450, 0.0650);
+#else
 // ART_DIRECTION §2/§3, in linear space.
 const vec3 ZENITH  = vec3(0.0508, 0.1746, 0.5457);   // #3f74c4
 const vec3 HORIZON = vec3(1.0000, 0.6308, 0.3515);   // #ffd0a0
 const vec3 SHALLOW = vec3(0.0508, 0.5841, 0.5457);   // #3fc9c4
 const vec3 DEEP    = vec3(0.0040, 0.1022, 0.1946);   // #0d5a7a
+#endif
 const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
 
 // The horizon is NOT one colour. At 14° of sun elevation it runs from a hot
@@ -362,7 +371,11 @@ const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
 // roughly a third of the sun-ward one and it is unmistakably BLUE; at a third
 // of the luminance and twice the saturation it stops being concrete and starts
 // being the deep end of a bay.
+#ifdef MOOD_WINTER
+const vec3 HZ_ANTI = vec3(0.2500, 0.2800, 0.3300);
+#else
 const vec3 HZ_ANTI = vec3(0.1350, 0.1690, 0.2980);   // counter-glow, dusk blue
+#endif
 
 /** Peak Fresnel. See the file header, fault (1). */
 const float FRES_MAX = 0.60;
