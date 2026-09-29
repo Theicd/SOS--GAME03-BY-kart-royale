@@ -444,18 +444,40 @@ export class Menus {
     wrap.style.flexDirection = 'column';
     wrap.style.alignItems = 'center';
     wrap.innerHTML = LOGO_SVG.replace('RAYS', buildRays());
-    const pick = el('div', 'kr-track', wrap);
-    const prev = el('div', 'kr-track-arrow', pick, '\u2039');
-    el('div', 'kr-sub', pick, MOOD_NAMES[MOOD] + ' Circuit');
-    const next = el('div', 'kr-track-arrow', pick, '\u203A');
     const ids = Object.keys(MOOD_NAMES) as MoodId[];
+    const SEEN = 'kr-seen-winter';
+    let seen = false;
+    try {
+      seen = localStorage.getItem(SEEN) === '1';
+      if (MOOD === 'winter') localStorage.setItem(SEEN, '1');
+    } catch { /* storage blocked */ }
+    const box = el('div', 'kr-track-box kr-track-' + MOOD, wrap);
+    el('div', 'kr-track-label', box, 'Select map');
+    const pick = el('div', 'kr-track', box);
+    const prev = el('div', 'kr-track-arrow', pick, '\u2039');
+    const name = el('div', 'kr-track-name', pick, MOOD_NAMES[MOOD]);
+    const next = el('div', 'kr-track-arrow', pick, '\u203A');
+    if (!seen) {
+      if (MOOD === 'winter') el('span', 'kr-new', name, 'New!');
+      else el('span', 'kr-new kr-new-arrow', next, 'New map');
+      box.classList.add('kr-track-hint');
+    }
+    const dots = el('div', 'kr-track-dots', box);
+    for (const id of ids) el('i', id === MOOD ? 'on' : '', dots);
     const go = (step: number) => (e: Event) => {
       e.stopPropagation();
       const id = ids[(ids.indexOf(MOOD) + step + ids.length) % ids.length];
       try { localStorage.setItem(MOOD_KEY, id); } catch { /* storage blocked */ }
-      const url = new URL(location.href);
-      url.searchParams.delete('map');
-      location.replace(url.toString());
+      const fx = el('div', 'kr-mapfx kr-mapfx-' + id, document.body);
+      const card = el('div', 'kr-mapfx-card', fx);
+      if (id === 'winter' && !seen) el('div', 'kr-mapfx-burst', card, 'New map!');
+      el('div', 'kr-mapfx-name', card, MOOD_NAMES[id]);
+      el('div', 'kr-mapfx-sub', card, 'Circuit');
+      setTimeout(() => {
+        const url = new URL(location.href);
+        url.searchParams.delete('map');
+        location.replace(url.toString());
+      }, 1400);
     };
     prev.onclick = go(-1);
     next.onclick = go(1);
