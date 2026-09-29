@@ -660,10 +660,15 @@ export function device(): DeviceProfile {
   return (deviceProfile ??= profileDevice());
 }
 
+/** localStorage key for the player's graphics choice on the title screen. */
+export const QUALITY_KEY = 'kr-quality';
+
 export function createSettings(): Settings {
   const dev = (deviceProfile = profileDevice());
   const params = new URLSearchParams(location.search);
-  const forced = params.get('quality');
+  let stored: string | null = null;
+  try { stored = localStorage.getItem(QUALITY_KEY); } catch { /* storage blocked */ }
+  const forced = params.get('quality') ?? stored;
   const q: Quality = forced
     ? ({ low: Quality.Low, medium: Quality.Medium, high: Quality.High, ultra: Quality.Ultra }[forced] ??
        Quality.High)

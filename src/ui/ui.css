@@ -1732,6 +1732,28 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   opacity: 0.82;
 }
 
+.kr-quality {
+  margin-top: 1.6vmin;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8vmin;
+}
+.kr-quality-label {
+  font-size: clamp(11px, 1.5vmin, 14px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.kr-quality-btns { display: flex; gap: 1vmin; }
+.kr-btn-q {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 1.2em;
+  font-size: clamp(11px, 1.6vmin, 15px);
+}
+
 .kr-hint {
   margin-top: 2.4vmin;
   font-size: clamp(9px, 1.4vmin, 18px);

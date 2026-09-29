@@ -10,7 +10,8 @@
  *
  * `?ui=title|select|pause|results` forces a screen, for capture and review.
  */
-import { RaceState, type Ctx, type IKart, type KartStats } from '../types';
+import { RaceState, Quality, type Ctx, type IKart, type KartStats } from '../types';
+import { QUALITY_KEY } from '../core/Settings';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
 
@@ -165,6 +166,7 @@ export class Menus {
   private titleHint!: HTMLDivElement;
   private titleGlyphs!: HTMLDivElement;
   private touchCopy: boolean | null = null;
+  private qualityBtns: HTMLDivElement[] = [];
 
   private rosterEl!: HTMLDivElement;
   private standingsEl!: HTMLDivElement;
@@ -217,6 +219,9 @@ export class Menus {
     });
     this.fillRoster(ctx);
     this.controls.attach(ctx);
+    const q = ctx.settings.quality;
+    const current = q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
+    for (const b of this.qualityBtns) b.classList.toggle('sel', b.dataset.q === current);
   }
 
   // ------------------------------------------------------------------ frame
@@ -430,6 +435,22 @@ export class Menus {
     this.titlePrompt = el('div', 'kr-prompt', wrap);
     this.titleGlyphs = el('div', 'kr-glyphs', wrap);
     this.titleHint = el('div', 'kr-hint', wrap);
+    const qrow = el('div', 'kr-quality', wrap);
+    el('div', 'kr-quality-label', qrow, 'Graphics');
+    const qbtns = el('div', 'kr-quality-btns', qrow);
+    for (const [label, value] of [['Low', 'low'], ['Medium', 'medium'], ['High', 'high']] as const) {
+      const b = el('div', 'kr-btn kr-btn-q', qbtns, label);
+      b.dataset.q = value;
+      // Settings are baked into textures and shaders at boot, so a change needs a reload.
+      b.onclick = (e) => {
+        e.stopPropagation();
+        try { localStorage.setItem(QUALITY_KEY, value); } catch { /* storage blocked */ }
+        const url = new URL(location.href);
+        url.searchParams.delete('quality');
+        location.replace(url.toString());
+      };
+      this.qualityBtns.push(b);
+    }
     const cbtn = el('div', 'kr-btn kr-btn-controls', wrap, 'Controls');
     cbtn.onclick = (e) => { e.stopPropagation(); this.controls.show(); };
     this.syncTouchCopy(false);

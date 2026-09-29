@@ -18,7 +18,9 @@ import { Synth, mtof, EPS } from './Synth';
 const STEPS_PER_BAR = 16;
 const BARS = 8;
 const TOTAL_STEPS = STEPS_PER_BAR * BARS;
-const LOOKAHEAD = 0.15;
+// Wide enough to ride out the 300-500 ms frames a weak GPU produces mid-race;
+// a window shorter than the longest frame leaves audible holes in the loop.
+const LOOKAHEAD = 0.6;
 const BASE_BPM = 132;
 
 /**
@@ -162,7 +164,7 @@ export class Music {
     const now = this.s.now;
     // A tab stall or a breakpoint leaves nextTime far in the past; jump the
     // sequencer forward rather than dumping a hundred notes at once.
-    if (this.nextTime < now - 0.25) this.nextTime = now + 0.02;
+    if (this.nextTime < now - 1) this.nextTime = now + 0.02;
     let guard = 48;
     while (this.nextTime < now + LOOKAHEAD && guard-- > 0) {
       this.scheduleStep(this.step, this.nextTime);
