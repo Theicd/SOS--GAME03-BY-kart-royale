@@ -1778,6 +1778,10 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.25s ease, background 0.2s ease;
 }
+.kr-dl { display: none; }
+html[data-can-install] .kr-dl { display: grid; }
+.kr-dl:hover { transform: translateY(2px) !important; }
+.kr-dl:active { transform: scale(0.94) !important; }
 .kr-gear:hover { background: rgba(40, 46, 80, 0.8); transform: rotate(45deg); }
 .kr-gear:active { transform: rotate(90deg) scale(0.94); }
 
@@ -2252,21 +2256,4 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   .kr-btn { padding: 0.38em 1em 0.42em; }
   .kr-roster { margin-top: 0.7vmin; }
   .kr-menu-list { margin-top: 0.7vmin; }
-}
-
-/* Portrait phone title: logo, subtitle, prompt and the two mode buttons get
-   real vertical rhythm, and the buttons stack full-width. */
-@media (orientation: portrait) and (max-width: 700px) {
-  .kr-s-title .kr-logo { width: 94vw; max-height: 34vh; }
-  .kr-s-title .kr-sub { margin-top: 0.6vh; font-size: clamp(10px, 3vw, 15px); letter-spacing: 0.4em; text-indent: 0.4em; }
-  .kr-s-title .kr-prompt { margin-top: 7vh; font-size: clamp(12px, 3.4vw, 16px); }
-  .kr-s-title .kr-mode {
-    flex-direction: column;
-    align-items: stretch;
-    flex-wrap: nowrap;
-    gap: 2vh;
-    margin-top: 2.6vh;
-    width: min(76vw, 320px);
-  }
-  .kr-s-title .kr-btn-mode { min-width: 0; min-height: 58px; font-size: clamp(15px, 4.4vw, 19px); }
 }
