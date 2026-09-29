@@ -219,7 +219,7 @@ export class RenderPipeline implements System {
       throw new Error('WebGL 2 is unavailable, so the renderer cannot be created.');
     }
     if (!caps.halfFloatRenderable) this.rung = Rung.Ldr;
-    if (!caps.byteRenderable) this.rung = Rung.Direct;
+    if (!caps.byteRenderable || ctx.settings.lite) this.rung = Rung.Direct;
     if (this.rung !== Rung.Hdr) {
       logPipeline('start', `pipeline starts on ${RUNG_NAMES[this.rung]} (boot probe)`);
     }
@@ -249,7 +249,7 @@ export class RenderPipeline implements System {
       // With the composer running, MSAA lives on the composer's render target
       // and the default framebuffer only ever receives one fullscreen triangle.
       // Without a composer, the driver's MSAA is the only edge treatment left.
-      antialias: !this.usePost,
+      antialias: !this.usePost && !ctx.settings.lite,
       powerPreference: 'high-performance',
       stencil: false,
       depth: true,

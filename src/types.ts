@@ -335,6 +335,11 @@ export const enum Quality {
 
 export interface Settings {
   quality: Quality;
+  /**
+   * Below Low, for weak phones: rides on Quality.Low (so every tier check
+   * treats it as Low) and additionally renders without the composer.
+   */
+  lite?: boolean;
   /** device pixel ratio cap */
   maxPixelRatio: number;
   shadows: boolean;

@@ -222,7 +222,8 @@ export class Menus {
     this.fillRoster(ctx);
     this.controls.attach(ctx);
     const q = ctx.settings.quality;
-    const current = q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
+    const current = ctx.settings.lite ? 'lite'
+      : q === Quality.Low ? 'low' : q === Quality.Medium ? 'medium' : 'high';
     for (const b of this.qualityBtns) b.classList.toggle('sel', b.dataset.q === current);
   }
 
@@ -445,7 +446,7 @@ export class Menus {
     const qrow = el('div', 'kr-quality', wrap);
     el('div', 'kr-quality-label', qrow, 'Graphics');
     const qbtns = el('div', 'kr-quality-btns', qrow);
-    for (const [label, value] of [['Low', 'low'], ['Medium', 'medium'], ['High', 'high']] as const) {
+    for (const [label, value] of [['Lite', 'lite'], ['Low', 'low'], ['Medium', 'medium'], ['High', 'high']] as const) {
       const b = el('div', 'kr-btn kr-btn-q', qbtns, label);
       b.dataset.q = value;
       // Settings are baked into textures and shaders at boot, so a change needs a reload.

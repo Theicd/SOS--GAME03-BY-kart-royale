@@ -1745,12 +1745,12 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   text-transform: uppercase;
   opacity: 0.75;
 }
-.kr-quality-btns { display: flex; gap: 1vmin; }
+.kr-quality-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 1vmin; max-width: 96vw; }
 .kr-btn-q {
   min-height: 42px;
   display: flex;
   align-items: center;
-  padding: 0 1.2em;
+  padding: 0 1em;
   font-size: clamp(11px, 1.6vmin, 15px);
 }
 

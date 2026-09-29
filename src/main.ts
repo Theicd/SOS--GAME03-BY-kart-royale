@@ -398,6 +398,8 @@ const RACING_SETTLE_FRAMES = 30;
  */
 const CSS_FLOOR_HANDHELD = 1.0;
 const CSS_FLOOR_DEFAULT = 0.6;
+/** Lite trades sharpness for frame rate by the player's own choice. */
+const CSS_FLOOR_LITE = 0.6;
 /**
  * The ladder must keep at least this many rungs of authority whatever the
  * floors above work out to, or a device with a large panel relative to its tier
@@ -642,7 +644,7 @@ function baseCssRatio(): number {
  */
 function lowestRung(): number {
   const base = baseCssRatio();
-  const floor = device().handheld ? CSS_FLOOR_HANDHELD : CSS_FLOOR_DEFAULT;
+  const floor = ctx.settings.lite ? CSS_FLOOR_LITE : device().handheld ? CSS_FLOOR_HANDHELD : CSS_FLOOR_DEFAULT;
   let i = SCALE_RUNGS.length - 1;
   while (i > 0 && base * SCALE_RUNGS[i] < floor - 1e-6) i--;
   // Never fewer than MIN_LADDER_RUNGS of range, and never past the array.

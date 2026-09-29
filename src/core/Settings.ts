@@ -653,6 +653,20 @@ function assertBackstopClearance(): void {
  */
 const MIN_CEILING_RATIO = 1;
 
+/**
+ * Lite — the tier below Low, for phones that cannot hold a frame on Low.
+ * No composer (Renderer starts it on the direct path), no bloom, near-bare
+ * verges, a sparse particle budget, and a buffer at about the panel's own CSS
+ * resolution instead of 1.5x it. Unlike every other tier it may go a little
+ * BELOW CSS resolution: the player chose smooth over sharp.
+ */
+const LITE: Partial<Settings> = {
+  lite: true, bloom: false, motionBlur: false, dof: false, ssao: false, shadows: false,
+  particleDensity: 0.15, foliageDensity: 0.08,
+};
+const LITE_BUDGET_MPX = 0.3;
+const LITE_MIN_RATIO = 0.8;
+
 let deviceProfile: DeviceProfile | null = null;
 
 /** The classification `createSettings()` used. Systems may read it; none may write it. */
@@ -668,14 +682,16 @@ export function createSettings(): Settings {
   const params = new URLSearchParams(location.search);
   let stored: string | null = null;
   try { stored = localStorage.getItem(QUALITY_KEY); } catch { /* storage blocked */ }
-  const forced = params.get('quality') ?? stored;
-  const q: Quality = forced
-    ? ({ low: Quality.Low, medium: Quality.Medium, high: Quality.High, ultra: Quality.Ultra }[forced] ??
-       Quality.High)
-    // Low until the player picks otherwise on the title screen: a phone or a
-    // weak laptop must run smoothly on first open, and detection guesses high.
-    : Quality.Low;
+  // Until the player picks on the title screen: Lite on a phone, Low elsewhere —
+  // first open must run smoothly, and detection guesses high.
+  const forced = params.get('quality') ?? stored ?? (dev.handheld ? 'lite' : null);
+  const lite = forced === 'lite';
+  const q: Quality = lite || !forced
+    ? Quality.Low
+    : ({ low: Quality.Low, medium: Quality.Medium, high: Quality.High, ultra: Quality.Ultra }[forced] ??
+       Quality.High);
   const s: Settings = { quality: q, masterVolume: 0.8, ...PRESETS[q] };
+  if (lite) Object.assign(s, LITE);
   // ?scale=0.75 etc. lets the screenshot harness trade resolution for time
   const scale = parseFloat(params.get('scale') || '');
   if (Number.isFinite(scale) && scale > 0) s.renderScale = scale;
@@ -693,10 +709,12 @@ export function createSettings(): Settings {
   assertBackstopClearance();
   const cssPx = (globalThis.innerWidth || 0) * (globalThis.innerHeight || 0);
   const budgetMpx = parseFloat(params.get('mpx') || '');
-  const budget = (Number.isFinite(budgetMpx) && budgetMpx > 0 ? budgetMpx : PIXEL_BUDGET_MPX[q]) * 1e6;
+  const tierBudget = lite ? LITE_BUDGET_MPX : PIXEL_BUDGET_MPX[q];
+  const budget = (Number.isFinite(budgetMpx) && budgetMpx > 0 ? budgetMpx : tierBudget) * 1e6;
   if (cssPx > 0) {
     const ceiling = Math.sqrt(budget / (cssPx * s.renderScale * s.renderScale));
-    const capped = Math.max(MIN_CEILING_RATIO, Math.min(s.maxPixelRatio, ceiling));
+    const floor = lite ? LITE_MIN_RATIO : MIN_CEILING_RATIO;
+    const capped = Math.max(floor, Math.min(s.maxPixelRatio, ceiling));
     if (capped < s.maxPixelRatio - 1e-3) {
       logPipeline('settings',
         `pixel ceiling: maxPixelRatio ${s.maxPixelRatio} -> ${capped.toFixed(2)} to keep the ` +
