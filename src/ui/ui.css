@@ -1732,6 +1732,31 @@ html[data-touch][data-touch-hand="left"] .kr .kr-pos {
   opacity: 0.82;
 }
 
+.kr-gear {
+  position: absolute;
+  z-index: 3;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 28px;
+  line-height: 1;
+  color: #ffd98a;
+  background: rgba(16, 20, 38, 0.62);
+  border: 1px solid rgba(255, 217, 138, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s ease, background 0.2s ease;
+}
+.kr-gear:hover { background: rgba(40, 46, 80, 0.8); transform: rotate(45deg); }
+.kr-gear:active { transform: rotate(90deg) scale(0.94); }
+
 .kr-quality {
   margin-top: 1.6vmin;
   display: flex;
