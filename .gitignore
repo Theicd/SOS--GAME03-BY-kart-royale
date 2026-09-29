@@ -1,6 +1,7 @@
 node_modules/
 dist/
 shots/
+MUSIC/
 
 # camera-panel worktrees, removed when the winner lands
 .claude/worktrees/

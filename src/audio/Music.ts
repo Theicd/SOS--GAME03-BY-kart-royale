@@ -75,6 +75,23 @@ const LEAD: readonly (readonly [number, number, number][])[] = [
   [[0, 76, 2], [2, 78, 2], [4, 80, 2], [6, 83, 2], [8, 83, 6]],
 ];
 
+/** Recorded tracks in public/music. One is drawn for the menus, another for each race. */
+const TRACKS = [
+  'golden-highway.mp3',
+  'golden-hour-run.mp3',
+  'outrun-sunset.mp3',
+  'sunburst-run.mp3',
+  'turbo-dash.mp3',
+];
+const TRACK_FADE = 1.2;
+const TRACK_LEVEL = 0.9;
+
+interface Deck {
+  el: HTMLAudioElement;
+  gain: GainNode;
+  track: string;
+}
+
 const KICK = [0, 4, 8, 12];
 const SNARE = [4, 12];
 const HAT_ACCENT = [0, 4, 8, 12];
@@ -120,6 +137,87 @@ export class Music {
     s.send(this.leadG, s.delayIn, 0.22);
     s.send(this.leadG, s.reverbIn, 0.2);
     s.send(this.drumG, s.reverbIn, 0.06);
+    this.initTracks();
+  }
+
+  // --- recorded tracks ------------------------------------------------------
+  // While they play, the synth band below stays silent; if a file cannot load
+  // the synth takes over again so the game is never left without music.
+  private decks: Deck[] = [];
+  private front = 0;
+  private menuTrack = '';
+  private raceTrack = '';
+  private useTracks = false;
+  private retryAt = 0;
+
+  private initTracks() {
+    const ac = this.s.ctx as AudioContext;
+    if (typeof document === 'undefined' || typeof ac.createMediaElementSource !== 'function') return;
+    try {
+      for (let i = 0; i < 2; i++) {
+        const el = document.createElement('audio');
+        el.loop = true;
+        el.preload = 'auto';
+        el.crossOrigin = 'anonymous';
+        const gain = this.s.gain(EPS);
+        ac.createMediaElementSource(el).connect(gain);
+        gain.connect(this.out);
+        el.addEventListener('error', () => this.dropTracks());
+        this.decks.push({ el, gain, track: '' });
+      }
+    } catch {
+      this.decks = [];
+      return;
+    }
+    this.menuTrack = TRACKS[(Math.random() * TRACKS.length) | 0];
+    this.raceTrack = this.pickRace();
+    this.useTracks = true;
+  }
+
+  private pickRace(): string {
+    const pool = TRACKS.filter((t) => t !== this.menuTrack && t !== this.raceTrack);
+    return pool[(Math.random() * pool.length) | 0] ?? this.menuTrack;
+  }
+
+  private dropTracks() {
+    if (!this.useTracks) return;
+    this.useTracks = false;
+    for (const d of this.decks) {
+      d.el.pause();
+      this.s.glide(d.gain.gain, EPS, 0.2);
+    }
+    this.isFull = !this.wantFull;
+  }
+
+  /** Crossfade to `track` on the idle deck; a no-op if it is already up front. */
+  private playTrack(track: string) {
+    const cur = this.decks[this.front];
+    if (cur.track === track && !cur.el.paused) return;
+    const next = cur.track === track ? cur : this.decks[1 - this.front];
+    if (next !== cur) {
+      this.s.glide(cur.gain.gain, EPS, TRACK_FADE / 3);
+      const old = cur.el;
+      setTimeout(() => { if (this.decks[this.front].el !== old) old.pause(); }, TRACK_FADE * 1000 + 200);
+      this.front = 1 - this.front;
+    }
+    if (next.track !== track) {
+      next.track = track;
+      next.el.src = `music/${track}`;
+    }
+    next.el.playbackRate = this.finalLap && track === this.raceTrack ? 1.04 : 1;
+    next.el.play().catch(() => { /* retried on the next arrangement change */ });
+    this.s.glide(next.gain.gain, TRACK_LEVEL, TRACK_FADE / 3);
+  }
+
+  private syncTracks() {
+    const full = this.wantFull;
+    if (full === this.isFull) {
+      if (!this.decks[this.front].el.paused || this.s.now < this.retryAt) return;
+      this.retryAt = this.s.now + 1;
+    }
+    if (full && !this.isFull) this.raceTrack = this.pickRace();
+    this.isFull = full;
+    this.playTrack(full ? this.raceTrack : this.menuTrack);
   }
 
   start() {
@@ -129,11 +227,22 @@ export class Music {
     this.nextTime = this.s.now + 0.12;
     // stop() faded the bus out; restarting has to undo that.
     this.s.glide(this.out.gain, this.ducked ? 0.22 : 1, 0.2);
+    if (this.useTracks) {
+      // Prime both elements inside the unlocking gesture — iOS refuses a later
+      // play() on a media element that has never been started by the user.
+      const idle = this.decks[1 - this.front].el;
+      idle.src = `music/${this.raceTrack}`;
+      this.decks[1 - this.front].track = this.raceTrack;
+      idle.play().then(() => idle.pause()).catch(() => {});
+      this.isFull = false;
+      this.playTrack(this.menuTrack);
+    }
   }
 
   stop() {
     this.running = false;
     this.s.glide(this.out.gain, EPS, 0.3);
+    for (const d of this.decks) d.el.pause();
   }
 
   /** Full band during the race, thin arrangement everywhere else. */
@@ -145,6 +254,7 @@ export class Music {
     if (this.finalLap === on) return;
     this.finalLap = on;
     this.bpmTarget = BASE_BPM * (on ? 1.075 : 1);
+    if (this.useTracks) this.decks[this.front].el.playbackRate = on ? 1.04 : 1;
   }
 
   /** Pull the whole loop back under a pause menu without stopping the clock. */
@@ -161,6 +271,10 @@ export class Music {
   /** Pumped once per frame. Schedules every step that falls inside the window. */
   update() {
     if (!this.running) return;
+    if (this.useTracks) {
+      this.syncTracks();
+      return;
+    }
     const now = this.s.now;
     // A tab stall or a breakpoint leaves nextTime far in the past; jump the
     // sequencer forward rather than dumping a hundred notes at once.
