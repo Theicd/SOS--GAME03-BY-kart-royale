@@ -1,3 +1,147 @@
+<div align="center">
+
+<img src="docs/sos/title-sunset.png" alt="Kart Royale - SOS Edition title screen" width="720"/>
+
+# 🏁 KART ROYALE · SOS Edition
+
+**A Mario Kart-style racer that runs in the browser: two maps, online multiplayer, and a lightweight mode for phones.**
+
+[![Play now](https://img.shields.io/badge/▶%20PLAY%20NOW-ffc84e?style=for-the-badge&labelColor=1a0f09)](https://theicd.github.io/SOS--GAME03-BY-kart-royale/)
+[![Original game](https://img.shields.io/badge/Original%20by-Ryan%20Campbell-181425?style=for-the-badge&logo=github)](https://github.com/ryancampbell/kart-royale)
+[![License MIT](https://img.shields.io/badge/License-MIT-5ab8ff?style=for-the-badge)](LICENSE)
+
+![Three.js](https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646cff?style=flat-square&logo=vite&logoColor=white)
+![WebRTC](https://img.shields.io/badge/WebRTC-333333?style=flat-square&logo=webrtc)
+![PWA](https://img.shields.io/badge/PWA-installable-5a0fc8?style=flat-square&logo=pwa)
+
+</div>
+
+---
+
+## ❤️ Credit
+
+> **This game was created by [Ryan Campbell](https://github.com/ryancampbell).**
+> Original repository: **[github.com/ryancampbell/kart-royale](https://github.com/ryancampbell/kart-royale)**.
+> You can play the original at [racing.ryancampbell.com](https://racing.ryancampbell.com).
+>
+> The original is released under the MIT license, and this edition keeps the [`LICENSE`](LICENSE) file unchanged.
+> Every mesh, texture, and sound comes from the original project. This edition adds new features and runs faster on phones.
+> The original README is kept in full [at the bottom of this page](#-original-readme).
+
+---
+
+## ✨ What's new in the SOS Edition
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### ❄️ New map: Winter Bay
+The original circuit under an overcast sky: grey clouds, dim cold sunlight, fog, and dark water.
+On the title screen, storm clouds with flickering lightning replace the sun rays behind the logo.
+
+</td>
+<td width="50%" valign="top">
+
+### 🗺️ Map picker
+Left and right arrows on the title screen switch between **Sunset Bay** and **Winter Bay**.
+A **NEW** row under the play buttons announces the new map, and the loading screen shows which map is loading.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🌐 Online multiplayer
+Rooms are found through Nostr, and players connect directly over WebRTC.
+Up to 4 players plus AI racers per room. Races start when everyone is ready, and you can watch a race that is already under way.
+
+</td>
+<td valign="top">
+
+### 📱 Built for phones
+A **Lite** graphics mode for weak devices: 30 fps pacing, a lower pixel budget, and fewer plants.
+There are also Low, Medium, and High modes. The layout works in portrait, the touch controls are clear, and the game installs as an app (PWA).
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎥 In-car camera
+Press `C` or tap **CAM** to switch to a cockpit view. The steering wheel turns with the front wheels.
+
+</td>
+<td valign="top">
+
+### 🎵 Sound and settings
+Recorded music: a random track in the menu and a different one each race.
+Separate volume for music, engine, and effects. All settings sit behind one gear icon.
+
+</td>
+</tr>
+</table>
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><img src="docs/sos/title-sunset.png" width="380"/><br/><sub><b>Sunset Bay</b>: the original map</sub></td>
+<td align="center"><img src="docs/sos/title-winter.png" width="380"/><br/><sub><b>Winter Bay</b>: storm clouds and lightning</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/sos/boot-winter.png" width="380"/><br/><sub>Loading screen with the map name</sub></td>
+<td align="center"><img src="docs/sos/mobile-title.png" width="200"/><br/><sub>Portrait layout on a phone</sub></td>
+</tr>
+</table>
+</div>
+
+---
+
+## 🎮 Controls
+
+| Action | Keyboard | Touch |
+|---|---|---|
+| Steer | `←` `→` | Stick on the left |
+| Accelerate | `↑` | Automatic |
+| Drift | `Shift` | **DRIFT** |
+| Item | `Space` | **FIRE** |
+| Camera | `C` | **CAM** |
+| Pause | `Esc` | ⏸ |
+
+---
+
+## 🛠️ Run locally
+
+```bash
+npm install
+npm run dev        # local development
+npm run build      # production build into dist/
+```
+
+Handy URL options: `?map=winter` opens Winter Bay, and `?quality=lite` forces Lite mode.
+
+---
+
+<div align="center">
+
+**The original game is by [Ryan Campbell](https://github.com/ryancampbell/kart-royale). The SOS Edition changes are by [Theicd](https://github.com/Theicd).**
+
+</div>
+
+---
+
+## 📜 Original README
+
+<details>
+<summary><b>Show the original README by Ryan Campbell</b></summary>
+
+
 # Kart Royale
 
 A Mario Kart-style racer in the browser. **No art assets.** No Blender, no Unity,
@@ -178,3 +322,5 @@ decoration. That's the top of the backlog.
 ## Licence
 
 MIT. See `LICENSE`.
+
+</details>
