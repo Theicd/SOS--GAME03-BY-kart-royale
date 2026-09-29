@@ -792,7 +792,9 @@ export class DriverRig {
     // because the arms were ignoring the wheel. 35 deg is also the truer number:
     // a kart has direct, unassisted steering and a real one turns about a third
     // of a turn lock to lock, not two thirds.
-    this.wheelNode.rotation.y = -this.sSteer * 0.62;
+    // Same sign as the front road wheels (Kart: node.rotation.y = +steerAngle):
+    // the column is only 35 deg off vertical, so the rim turns the way they do.
+    this.wheelNode.rotation.y = this.sSteer * 0.62;
     // THE GRIP. The arm node itself no longer turns: it used to swing at 0.22
     // against the rim's 0.85, which is 0.63 rad of slip at full lock and 98 mm
     // of daylight between the glove and the wheel it is supposed to be holding.
