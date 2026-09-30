@@ -49,6 +49,7 @@
 import * as THREE from 'three';
 import { feel } from '../core/Feel';
 import { isCockpit, toggleCockpit } from '../core/CameraView';
+import { netHooks } from '../net/NetHooks';
 import { BASE_TOP_SPEED, RaceState, type Ctx, type IKart, type System, type TrackSample } from '../types';
 
 // ===========================================================================
@@ -463,6 +464,8 @@ const COCKPIT_UP = 0.06;
 const COCKPIT_FWD = 0.14;
 /** Metres the aim point drops over 20 m ahead — the road, not the sky. */
 const COCKPIT_PITCH = 1.1;
+/** Spectating a live room: seconds in each rival's cockpit before cutting to the next. */
+const WATCH_SWITCH_S = 6;
 
 type CamMode = 'chase' | 'wide' | 'close';
 /** Track.sample() takes a scratch target; the ITrack interface hides it. */
@@ -661,6 +664,8 @@ export class ChaseCamera implements System {
   private hasCockUp = false;
   private helmetKart: IKart | null = null;
   private helmets = new Map<IKart, THREE.Object3D[]>();
+  private watchIdx = -1;
+  private watchT = 0;
   private onCamKey = (e: KeyboardEvent) => {
     if (e.code === 'KeyC' && !e.repeat) toggleCockpit();
   };
@@ -745,6 +750,14 @@ export class ChaseCamera implements System {
     const mode: CamMode = ((window as any).__camMode as CamMode) || 'chase';
     const state = ctx.race.state;
     this.buildProps(ctx);
+
+    const watched = netHooks.wait?.phase === 'race' && state === RaceState.Menu ? this.watchTarget(ctx, dt) : null;
+    if (watched) {
+      this.hideHelmet(watched, true);
+      this.applyFov(ctx, 'chase', clamp(Math.abs(watched.forwardSpeed) / BASE_TOP_SPEED, 0, 1.25), RaceState.Racing, dt);
+      this.poseCockpit(ctx, watched, dt);
+      return;
+    }
 
     // A harness mode change is a cut, and the lens must be at its new focal
     // length on the very first frame: the composition is solved against the
@@ -895,6 +908,20 @@ export class ChaseCamera implements System {
         .applyQuaternion(ctx.camera.quaternion);
       ctx.camera.position.add(_tmp);
     }
+  }
+
+  /** Waiting for the next round: ride along in a rival's cockpit, a new one every few seconds. */
+  private watchTarget(ctx: Ctx, dt: number): IKart | null {
+    const karts = ctx.race.karts;
+    if (!karts.length) return null;
+    this.watchT -= dt;
+    if (this.watchIdx < 0 || this.watchT <= 0 || !karts[this.watchIdx]) {
+      const hop = karts.length > 1 ? 1 + Math.floor(Math.random() * (karts.length - 1)) : 0;
+      this.watchIdx = (Math.max(0, this.watchIdx) + hop) % karts.length;
+      this.watchT = WATCH_SWITCH_S;
+      this.hasCockUp = false;
+    }
+    return karts[this.watchIdx];
   }
 
   /** The driver's view: eye at the visor, looking down the kart's own axis. */
