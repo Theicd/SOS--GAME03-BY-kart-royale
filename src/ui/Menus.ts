@@ -544,7 +544,9 @@ export class Menus {
       el('span', 'kr-drawer-dot', tab);
       el('span', 'kr-drawer-tab-txt', tab, 'New map');
       const card = el('div', 'kr-drawer-card', drawer);
-      const close = el('div', 'kr-drawer-close', card, '\u00D7');
+      const close = el('div', 'kr-drawer-close', card);
+      close.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+      close.setAttribute('aria-label', 'Close');
       el('div', 'kr-drawer-tag', card, 'New map');
       el('div', 'kr-drawer-name', card, MOOD_NAMES.winter);
       el('div', 'kr-drawer-sub', card, 'Overcast skies, cold light');
