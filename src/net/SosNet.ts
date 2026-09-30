@@ -68,10 +68,12 @@ const GATHER_MAX_MS = 15000;
 const AUTO_NEXT_MS = 12000;
 /** Typical one-lap race, used for the spectators' "next race in" estimate. */
 const EST_RACE_S = 60;
+/** First PLAY opens a lobby this long, so players arriving seconds later race too. */
+const LOBBY_MS = 10000;
 
 type Role = 'searching' | 'host' | 'client';
 
-interface RoomInfo { pubkey: string; players: number; max: number; ts: number }
+interface RoomInfo { pubkey: string; players: number; max: number; ts: number; startsAt?: number }
 
 interface Peer {
   /** true on the host's end of the link */
@@ -133,6 +135,7 @@ class SosNet {
   private pendingStart: { idx: number; cd: number } | null = null;
   /** host: lobby window — 0 when not gathering */
   private gatherFrom = 0;
+  private gatherMs = LOBBY_MS;
   private resultsSince = 0;
   /** client: 'ready' has been sent to the current host */
   private sentReady = false;
@@ -143,7 +146,7 @@ class SosNet {
   /** PLAY pressed while still looking for a room — start as soon as the role is known. */
   private wantStart = false;
   private lastEta = 0;
-  private eta: { at: number; total: number; phase: 'race' | 'next' } | null = null;
+  private eta: { at: number; total: number; phase: 'race' | 'next' | 'lobby' } | null = null;
 
   private samples: Sample[][] = [];
   private heartbeat = 0;
@@ -152,7 +155,7 @@ class SosNet {
   private q0 = new THREE.Quaternion();
   private v0 = new THREE.Vector3();
 
-  constructor(ctx: Ctx) {
+  constructor(ctx: Ctx, seed: RoomInfo[] = []) {
     this.ctx = ctx;
     this.race = ctx.race as unknown as Race;
     this.badge = document.createElement('div');
@@ -170,9 +173,10 @@ class SosNet {
     this.race.netDrive = (c, k, i, dt) => this.drive(c, k, i, dt);
     netHooks.requestStart = () => this.requestStart();
 
+    for (const r of seed) this.rooms.set(r.pubkey, r);
     this.listen();
     this.timers.push(
-      window.setTimeout(() => void this.matchmake(), LISTEN_MS),
+      window.setTimeout(() => void this.matchmake(), this.liveRooms().length ? 300 : LISTEN_MS),
       window.setInterval(() => this.sendPoses(), 1000 / POSE_HZ),
       window.setInterval(() => this.tick(), 250),
     );
@@ -224,6 +228,7 @@ class SosNet {
             players: Math.max(1, Math.min(MAX_HUMANS, Number(c.players) || 1)),
             max: MAX_HUMANS,
             ts: ev.created_at,
+            startsAt: Number(c.startsAt) || 0,
           });
         } catch { /* not ours */ }
       },
@@ -254,9 +259,19 @@ class SosNet {
       kind: KIND_ROOM,
       created_at: nowSec(),
       tags: [['d', ROOM_TAG], ['t', ROOM_TAG]],
-      content: JSON.stringify({ v: 1, room: this.pk, players: this.humans(), max: MAX_HUMANS, closed }),
+      content: JSON.stringify({ v: 1, room: this.pk, players: this.humans(), max: MAX_HUMANS, closed, startsAt: closed ? 0 : this.startsAt() }),
     }, this.sk);
     void Promise.allSettled(this.pool.publish(RELAYS, ev));
+  }
+
+  /** Host: when the next race will start (epoch ms), 0 while racing or idle. */
+  private startsAt(): number {
+    if (this.role !== 'host') return 0;
+    if (this.gatherFrom) return Date.now() + Math.max(0, this.gatherFrom + this.gatherMs - now());
+    if (this.race.state === RaceState.Results && this.resultsSince) {
+      return Date.now() + Math.max(0, AUTO_NEXT_MS + GATHER_MIN_MS - (now() - this.resultsSince));
+    }
+    return 0;
   }
 
   // ------------------------------------------------------------ matchmaking
@@ -438,7 +453,6 @@ class SosNet {
     this.myIdx = -1;
     this.spectating = false;
     this.lobbyText = '';
-    this.gatherFrom = 0;
     this.wantNext = false;
   }
 
@@ -491,8 +505,11 @@ class SosNet {
     this.refresh();
   }
 
-  private gather() {
-    if (!this.gatherFrom) this.gatherFrom = now();
+  private gather(ms = LOBBY_MS) {
+    if (this.gatherFrom) return;
+    this.gatherFrom = now();
+    this.gatherMs = ms;
+    this.announce();
   }
 
   private readyCount(): { ready: number; total: number } {
@@ -555,7 +572,9 @@ class SosNet {
       if (p.idx >= 0) this.send(p, { t: 'start', idx: p.idx, cd: 0 });
     }
     netHooks.beginRace(mine);
+    netHooks.wait = null;
     this.lobbyText = '';
+    this.announce();
     this.refresh();
   }
 
@@ -565,12 +584,16 @@ class SosNet {
     if (!this.peers.size || now() - this.lastEta < 1000) return;
     this.lastEta = now();
     const next = AUTO_NEXT_MS / 1000 + 2;
-    const total = EST_RACE_S + next;
+    let total = EST_RACE_S + next;
     const s = this.race.state;
-    let left: number, phase: 'race' | 'next' = 'race';
+    let left: number, phase: 'race' | 'next' | 'lobby' = 'race';
     if (s === RaceState.Countdown) left = total + this.race.countdownLeft;
     else if (this.isRacing()) left = Math.max(4, EST_RACE_S - this.race.raceTime) + next;
-    else {
+    else if (this.gatherFrom) {
+      phase = this.gatherMs >= LOBBY_MS ? 'lobby' : 'next';
+      left = Math.max(0, (this.gatherFrom + this.gatherMs - now()) / 1000);
+      total = this.gatherMs / 1000;
+    } else {
       phase = 'next';
       left = this.resultsSince ? Math.max(2, (AUTO_NEXT_MS - (now() - this.resultsSince)) / 1000 + 2) : 3;
     }
@@ -584,28 +607,32 @@ class SosNet {
     const s = this.race.state;
     if (this.wantStart && netHooks.booted) {
       this.wantStart = false;
-      if (!this.isRacing()) { this.peers.size ? this.gather() : this.startAll(); return; }
+      if (!this.isRacing()) this.gather();
     }
     if (s === RaceState.Results && !this.gatherFrom) {
-      if (this.wantNext) { this.wantNext = false; this.gather(); }
-      else if (!this.resultsSince) this.resultsSince = now();
-      else if (now() - this.resultsSince > AUTO_NEXT_MS) {
-        if (!this.peers.size) { if (netHooks.booted) this.startAll(); return; }
-        this.gather();
-      } else {
+      if (this.wantNext) { this.wantNext = false; this.gather(GATHER_MIN_MS); }
+      else if (!this.resultsSince) { this.resultsSince = now(); this.announce(); }
+      else if (now() - this.resultsSince > AUTO_NEXT_MS) this.gather(GATHER_MIN_MS);
+      else {
         this.setLobby(`Next race in ${Math.ceil((AUTO_NEXT_MS - (now() - this.resultsSince)) / 1000)}s`);
       }
     } else if (s !== RaceState.Results) {
       this.resultsSince = 0;
       if (!this.gatherFrom) this.setLobby('');
     }
-    if (!this.peers.size) { this.gatherFrom = 0; return; }
-    if (!this.gatherFrom) return;
+    if (!this.gatherFrom) { netHooks.wait = null; return; }
     const { ready, total } = this.readyCount();
+    const pending = [...this.peers.values()].some((p) => !p.open);
     const waited = now() - this.gatherFrom;
-    this.setLobby(`Starting · ${ready}/${total} ready`);
+    const left = Math.ceil((this.gatherMs - waited) / 1000);
+    this.setLobby(left > 0 ? `Race starts in ${left}s \u00b7 ${total}/${MAX_HUMANS} players` : 'Waiting for players to load\u2026');
+    netHooks.wait = this.gatherMs >= LOBBY_MS
+      ? { etaAt: this.gatherFrom + this.gatherMs, total: this.gatherMs / 1000, phase: 'lobby' }
+      : null;
     if (!netHooks.booted) return;
-    if ((ready >= total && waited >= GATHER_MIN_MS) || waited >= GATHER_MAX_MS) this.startAll();
+    const allIn = ready >= total && !pending;
+    const full = total >= MAX_HUMANS && waited >= GATHER_MIN_MS;
+    if ((allIn && (waited >= this.gatherMs || full)) || waited >= Math.max(this.gatherMs + 6000, GATHER_MAX_MS)) this.startAll();
   }
 
   /** Host: lobby / next-race line, mirrored to every client's badge. */
@@ -627,7 +654,7 @@ class SosNet {
         this.eta = {
           at: performance.now() + Math.max(0, Math.min(600, m.s)) * 1000,
           total: Math.max(1, Math.min(600, m.total)),
-          phase: m.phase === 'next' ? 'next' : 'race',
+          phase: m.phase === 'next' || m.phase === 'lobby' ? m.phase : 'race',
         };
       } else if (m.t === 'wait' && typeof m.text === 'string') {
         this.lobbyText = m.text.slice(0, 40);
@@ -678,7 +705,7 @@ class SosNet {
     if (this.role === 'client') {
       this.wantStart = false;
       const e = this.eta;
-      netHooks.wait = this.spectating
+      netHooks.wait = this.spectating || e?.phase === 'lobby'
         ? { etaAt: e ? e.at : 0, total: e ? e.total : EST_RACE_S, phase: e ? e.phase : 'race' }
         : null;
       const h = this.host;
@@ -699,11 +726,11 @@ class SosNet {
       this.send(this.host, { t: 'req' });
       return true;
     }
-    if (this.role === 'host' && this.peers.size > 0) {
+    if (this.role === 'host') {
       // Finished = this player is over the line but others may still be
       // driving; the next race is rolled once the board is up.
-      if (this.race.state === RaceState.Finished) this.wantNext = true;
-      else if (!this.isRacing()) this.gather();
+      if (this.race.state === RaceState.Finished) { if (!this.peers.size) return false; this.wantNext = true; }
+      else if (!this.isRacing()) this.gather(this.race.state === RaceState.Results ? GATHER_MIN_MS : LOBBY_MS);
       return true;
     }
     return false;
@@ -838,12 +865,67 @@ class SosNet {
 
 let instance: SosNet | null = null;
 
+let watcher: { rooms: Map<string, RoomInfo>; close: () => void } | null = null;
+
+const netAllowed = () => {
+  const q = new URLSearchParams(location.search);
+  return q.get('net') !== '0' && q.get('solo') !== '1' && typeof WebSocket !== 'undefined';
+};
+
+/**
+ * Before PLAY: read-only view of the room announcements, so the title can
+ * offer "JOIN · 7s" while a lobby nearby is counting down. Joins nothing.
+ */
+export function watchRooms() {
+  if (watcher || instance || !netAllowed()) return;
+  const pool = new SimplePool();
+  const rooms = new Map<string, RoomInfo>();
+  const pick = () => {
+    const cut = nowSec() - ROOM_TTL, t = Date.now();
+    let best: RoomInfo | null = null;
+    for (const r of rooms.values()) {
+      if (r.ts < cut || r.players >= MAX_HUMANS || !r.startsAt || r.startsAt <= t) continue;
+      if (!best || r.startsAt < best.startsAt!) best = r;
+    }
+    netHooks.openRoom = best ? { startsAt: best.startsAt! } : null;
+  };
+  const sub = pool.subscribeMany(RELAYS, { kinds: [KIND_ROOM], '#t': [ROOM_TAG], since: nowSec() - 60 }, {
+    onevent: (ev) => {
+      try {
+        const c = JSON.parse(ev.content);
+        const prev = rooms.get(ev.pubkey);
+        if (prev && prev.ts > ev.created_at) return;
+        if (c.closed) rooms.delete(ev.pubkey);
+        else rooms.set(ev.pubkey, {
+          pubkey: ev.pubkey,
+          players: Math.max(1, Math.min(MAX_HUMANS, Number(c.players) || 1)),
+          max: MAX_HUMANS,
+          ts: ev.created_at,
+          startsAt: Number(c.startsAt) || 0,
+        });
+        pick();
+      } catch { /* not ours */ }
+    },
+  });
+  const timer = window.setInterval(pick, 1000);
+  watcher = {
+    rooms,
+    close: () => {
+      clearInterval(timer);
+      try { sub.close(); } catch { /* closed */ }
+      setTimeout(() => { try { pool.destroy(); } catch { /* closed */ } }, 500);
+      netHooks.openRoom = null;
+    },
+  };
+}
+
 export function startNet(ctx: Ctx) {
   if (instance) return;
-  const q = new URLSearchParams(location.search);
-  if (q.get('net') === '0' || q.get('solo') === '1') return;
-  if (typeof RTCPeerConnection === 'undefined' || typeof WebSocket === 'undefined') return;
-  try { instance = new SosNet(ctx); } catch (err) { console.warn('[net] disabled', err); }
+  if (!netAllowed() || typeof RTCPeerConnection === 'undefined') return;
+  const seed = watcher ? [...watcher.rooms.values()] : [];
+  watcher?.close();
+  watcher = null;
+  try { instance = new SosNet(ctx, seed); } catch (err) { console.warn('[net] disabled', err); }
 }
 
 export function stopNet() {

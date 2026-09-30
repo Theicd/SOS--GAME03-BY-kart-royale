@@ -18,7 +18,7 @@ import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
 import { MOOD, MOOD_NAMES, WINTER, type MoodId } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
-import { startNet, stopNet } from '../net/SosNet';
+import { startNet, stopNet, watchRooms } from '../net/SosNet';
 
 export type ScreenName = 'none' | 'title' | 'select' | 'pause' | 'results';
 
@@ -227,6 +227,9 @@ export class Menus {
   private playBtn!: HTMLDivElement;
   private titleEl!: HTMLDivElement;
   private waitHead!: HTMLSpanElement;
+  private waitBox!: HTMLDivElement;
+  private waitSub!: HTMLDivElement;
+  private joinLeft = -1;
   private waitFill!: HTMLElement;
   private waitEta!: HTMLDivElement;
   private online = false;
@@ -281,6 +284,7 @@ export class Menus {
   init(ctx: Ctx) {
     this.ctx = ctx;
     netHooks.beginRace = (index) => this.beginRace(ctx, index);
+    watchRooms();
     // finish times are not on IRace, so we stamp them off the bus ourselves
     ctx.bus.on((e) => {
       if (e.type === 'finish') this.finishTimes.set(e.kart.id, ctx.race.raceTime);
@@ -537,11 +541,11 @@ export class Menus {
       e.stopPropagation();
       this.startRace(this.ctx);
     };
-    const wait = el('div', 'kr-wait', wrap);
+    const wait = this.waitBox = el('div', 'kr-wait', wrap);
     const head = el('div', 'kr-wait-head', wait);
     el('span', 'kr-wait-dot', head);
     this.waitHead = el('span', '', head);
-    el('div', 'kr-wait-sub', wait, "You're in line — you race in the next round");
+    this.waitSub = el('div', 'kr-wait-sub', wait);
     this.waitFill = el('i', '', el('div', 'kr-wait-bar', wait));
     this.waitEta = el('div', 'kr-wait-eta', wait);
     if (MOOD === 'sunset') {
@@ -627,19 +631,38 @@ export class Menus {
   /** Queued behind a live race: drop the logo, show the race and a live ETA. */
   private syncWatch() {
     const w = this.screen === 'title' ? netHooks.wait : null;
-    this.titleEl.classList.toggle('kr-watch', !!w);
+    const lobby = w?.phase === 'lobby';
+    this.titleEl.classList.toggle('kr-watch', !!w && !lobby);
+    this.titleEl.classList.toggle('kr-lobby', lobby);
+    this.syncJoin();
     if (!w) return;
-    this.waitHead.textContent = w.phase === 'race' ? 'Live · race in progress' : 'Round over · next race soon';
+    this.waitBox.classList.toggle('lobby', lobby);
+    this.waitHead.textContent = lobby ? 'Waiting for players'
+      : w.phase === 'race' ? 'Live · race in progress' : 'Round over · next race soon';
+    this.waitSub.textContent = lobby ? 'Others can still join — get ready!'
+      : "You're in line — you race in the next round";
     if (!w.etaAt) {
       this.waitEta.textContent = 'Estimating time…';
       this.waitFill.style.width = '0%';
       return;
     }
     const left = Math.max(0, Math.round((w.etaAt - performance.now()) / 1000));
-    this.waitEta.textContent = left > 0
-      ? `Next race in ~${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
-      : 'Starting…';
+    this.waitEta.textContent = left <= 0 ? 'Starting…'
+      : lobby ? `Race starts in ${left}s`
+      : `Next race in ~${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
     this.waitFill.style.width = `${Math.min(100, Math.max(0, (1 - left / w.total) * 100))}%`;
+  }
+
+  /** A lobby nearby is counting down: PLAY becomes "JOIN · Ns". */
+  private syncJoin() {
+    const r = this.online ? null : netHooks.openRoom;
+    const left = r ? Math.max(0, Math.ceil((r.startsAt - Date.now()) / 1000)) : 0;
+    if (left === this.joinLeft) return;
+    this.joinLeft = left;
+    this.playBtn.textContent = left ? `JOIN · ${left}s` : 'PLAY';
+    this.playBtn.classList.toggle('kr-btn-join', !!left);
+    if (left) this.titlePrompt.textContent = 'A race is about to start — join now!';
+    else this.syncPrompt();
   }
 
   private syncPrompt() {

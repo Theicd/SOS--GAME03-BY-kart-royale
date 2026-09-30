@@ -15,10 +15,13 @@ export const netHooks: {
   beginRace: ((index: number) => void) | null;
   booted: boolean;
   /** Set while this player is queued behind a live race; `etaAt` 0 = no estimate yet. */
-  wait: { etaAt: number; total: number; phase: 'race' | 'next' } | null;
+  wait: { etaAt: number; total: number; phase: 'race' | 'next' | 'lobby' } | null;
+  /** A room nearby is about to start (epoch ms) — the title offers JOIN until then. */
+  openRoom: { startsAt: number } | null;
 } = {
   requestStart: null,
   beginRace: null,
   booted: false,
   wait: null,
+  openRoom: null,
 };
