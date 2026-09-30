@@ -224,8 +224,7 @@ export class Menus {
   private titleGlyphs!: HTMLDivElement;
   private touchCopy: boolean | null = null;
   /** title: play-mode buttons; see `setOnline` */
-  private soloBtn!: HTMLDivElement;
-  private onlineBtn!: HTMLDivElement;
+  private playBtn!: HTMLDivElement;
   private online = false;
 
   private rosterEl!: HTMLDivElement;
@@ -457,6 +456,7 @@ export class Menus {
   }
 
   private startRace(ctx: Ctx) {
+    this.setOnline(true);
     if (netHooks.requestStart?.()) return;
     const n = ctx.race.karts.length;
     this.beginRace(ctx, n > 0 ? Math.floor(Math.random() * n) : 0);
@@ -526,17 +526,10 @@ export class Menus {
     // the words "Press Enter to Start" above them.
     this.titlePrompt = el('div', 'kr-prompt', wrap);
     const mode = el('div', 'kr-mode', wrap);
-    this.soloBtn = el('div', 'kr-btn kr-btn-mode', mode, 'Solo race');
-    this.onlineBtn = el('div', 'kr-btn kr-btn-mode kr-btn-online', mode, 'Online');
-    this.soloBtn.onclick = (e) => {
+    this.playBtn = el('div', 'kr-btn kr-btn-mode kr-btn-online', mode, 'PLAY');
+    this.playBtn.onclick = (e) => {
       e.stopPropagation();
-      if (this.online) this.setOnline(false);
-      else this.startRace(this.ctx);
-    };
-    this.onlineBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (this.online) this.startRace(this.ctx);
-      else this.setOnline(true);
+      this.startRace(this.ctx);
     };
     if (MOOD === 'sunset') {
       const drawer = el('div', 'kr-drawer', s);
@@ -607,25 +600,21 @@ export class Menus {
    * the player is looking at rather than on a screen they are leaving.
    */
   /**
-   * Online is opt-in: nothing touches the network until the player asks. While
-   * online the two buttons become "Start race" (routed through the room) and
-   * "Leave online" (tears the room down and goes back to solo).
+   * Nothing touches the network until the player presses PLAY; from then on
+   * every start is routed through the room (joined, or opened with AI rivals).
    */
   private setOnline(on: boolean) {
     if (on === this.online) return;
     this.online = on;
     if (on) startNet(this.ctx);
     else stopNet();
-    this.soloBtn.textContent = on ? 'Leave online' : 'Solo race';
-    this.onlineBtn.textContent = on ? 'Start race' : 'Online';
-    this.onlineBtn.classList.toggle('on', on);
     this.syncPrompt();
   }
 
   private syncPrompt() {
     this.titlePrompt.textContent = this.online
       ? 'Online — players join automatically'
-      : this.touchCopy ? 'Choose how to play' : 'Enter for a solo race';
+      : this.touchCopy ? 'Tap PLAY to race' : 'Enter to play';
   }
 
   private syncTouchCopy(touch: boolean) {

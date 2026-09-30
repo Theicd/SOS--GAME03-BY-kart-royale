@@ -64,7 +64,7 @@ const POSE_BYTES = 42;
 const GATHER_MIN_MS = 1500;
 /** Lobby: stop waiting for players still loading after this; they join the next race. */
 const GATHER_MAX_MS = 15000;
-/** Host sitting on the results board with others in the room rolls the next race after this. */
+/** Host sitting on the results board rolls the next race after this. */
 const AUTO_NEXT_MS = 12000;
 
 type Role = 'searching' | 'host' | 'client';
@@ -138,6 +138,8 @@ class SosNet {
   private lobbyText = '';
   /** host: asked for another race while still Finished; roll it when the board is up */
   private wantNext = false;
+  /** PLAY pressed while still looking for a room — start as soon as the role is known. */
+  private wantStart = false;
 
   private samples: Sample[][] = [];
   private heartbeat = 0;
@@ -288,7 +290,7 @@ class SosNet {
    * to the lower key so exactly one side moves.
    */
   private async mergeLoneHost() {
-    if (this.peers.size > 0 || this.joining) return;
+    if (this.peers.size > 0 || this.joining || this.isRacing()) return;
     const target = this.liveRooms().find((r) => r.players > 1 || r.pubkey < this.pk);
     if (!target) return;
     if (await this.tryJoin(target.pubkey)) {
@@ -554,26 +556,39 @@ class SosNet {
 
   /** Host: lobby window and the results auto-roll, polled from `tick`. */
   private hostTick() {
-    if (!this.peers.size) { this.gatherFrom = 0; this.resultsSince = 0; this.lobbyText = ''; return; }
     const s = this.race.state;
+    if (this.wantStart && netHooks.booted) {
+      this.wantStart = false;
+      if (!this.isRacing()) { this.peers.size ? this.gather() : this.startAll(); return; }
+    }
     if (s === RaceState.Results && !this.gatherFrom) {
       if (this.wantNext) { this.wantNext = false; this.gather(); }
       else if (!this.resultsSince) this.resultsSince = now();
-      else if (now() - this.resultsSince > AUTO_NEXT_MS) this.gather();
+      else if (now() - this.resultsSince > AUTO_NEXT_MS) {
+        if (!this.peers.size) { if (netHooks.booted) this.startAll(); return; }
+        this.gather();
+      } else {
+        this.setLobby(`Next race in ${Math.ceil((AUTO_NEXT_MS - (now() - this.resultsSince)) / 1000)}s`);
+      }
     } else if (s !== RaceState.Results) {
       this.resultsSince = 0;
+      if (!this.gatherFrom) this.setLobby('');
     }
+    if (!this.peers.size) { this.gatherFrom = 0; return; }
     if (!this.gatherFrom) return;
     const { ready, total } = this.readyCount();
     const waited = now() - this.gatherFrom;
-    const text = `Starting · ${ready}/${total} ready`;
-    if (text !== this.lobbyText) {
-      this.lobbyText = text;
-      for (const p of this.peers.values()) this.send(p, { t: 'wait', text });
-      this.refresh();
-    }
+    this.setLobby(`Starting · ${ready}/${total} ready`);
     if (!netHooks.booted) return;
     if ((ready >= total && waited >= GATHER_MIN_MS) || waited >= GATHER_MAX_MS) this.startAll();
+  }
+
+  /** Host: lobby / next-race line, mirrored to every client's badge. */
+  private setLobby(text: string) {
+    if (text === this.lobbyText) return;
+    this.lobbyText = text;
+    for (const p of this.peers.values()) this.send(p, { t: 'wait', text });
+    this.refresh();
   }
 
   private onCtl(peer: Peer, m: any) {
@@ -628,6 +643,7 @@ class SosNet {
 
   private tick() {
     if (this.role === 'client') {
+      this.wantStart = false;
       const h = this.host;
       if (h && !this.sentReady && netHooks.booted && this.race.karts.length && h.ctl?.readyState === 'open') {
         this.sentReady = true;
@@ -641,6 +657,7 @@ class SosNet {
   }
 
   private requestStart(): boolean {
+    if (this.role === 'searching') { this.wantStart = true; return true; }
     if (this.role === 'client' && this.host) {
       this.send(this.host, { t: 'req' });
       return true;
@@ -771,13 +788,13 @@ class SosNet {
   private refresh() {
     if (this.role === 'client') {
       if (this.lobbyText) this.setBadge(`ONLINE · ${this.lobbyText}`);
-      else if (this.spectating) this.setBadge('ONLINE · race in progress — you join the next one');
+      else if (this.spectating) this.setBadge('ONLINE · watching live — you race the next round');
       else if (!netHooks.booted) this.setBadge('ONLINE · in room · loading…');
       else this.setBadge('ONLINE · in room');
     } else if (this.role === 'host' && this.peers.size > 0) {
       this.setBadge(`ONLINE ${this.humans()}/${MAX_HUMANS} · host${this.lobbyText ? ' · ' + this.lobbyText : ''}`);
     }
-    else if (this.role === 'host') this.setBadge('Room open · waiting for players');
+    else if (this.role === 'host') this.setBadge(this.lobbyText ? `ONLINE · ${this.lobbyText}` : 'Room open · waiting for players');
     else this.setBadge('Looking for a room…');
   }
 }
