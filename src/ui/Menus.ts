@@ -539,12 +539,27 @@ export class Menus {
       else this.setOnline(true);
     };
     if (MOOD === 'sunset') {
-      const promo = el('div', 'kr-btn kr-newmap', wrap);
-      el('span', 'kr-newmap-tag', promo, 'New');
-      el('span', 'kr-newmap-name', promo, MOOD_NAMES.winter);
-      el('span', 'kr-newmap-go', promo, 'Play \u203A');
-      promo.onpointerdown = (e) => e.stopPropagation();
-      promo.onclick = (e) => { e.stopPropagation(); load('winter'); };
+      const drawer = el('div', 'kr-drawer', s);
+      const tab = el('div', 'kr-drawer-tab', drawer);
+      el('span', 'kr-drawer-dot', tab);
+      el('span', 'kr-drawer-tab-txt', tab, 'New map');
+      const card = el('div', 'kr-drawer-card', drawer);
+      const close = el('div', 'kr-drawer-close', card, '\u00D7');
+      el('div', 'kr-drawer-tag', card, 'New map');
+      el('div', 'kr-drawer-name', card, MOOD_NAMES.winter);
+      el('div', 'kr-drawer-sub', card, 'Overcast skies, cold light');
+      const play = el('div', 'kr-btn kr-drawer-play', card, 'Play \u203A');
+      const setOpen = (open: boolean) => drawer.classList.toggle('open', open);
+      drawer.onpointerdown = (e) => e.stopPropagation();
+      drawer.onclick = (e) => e.stopPropagation();
+      tab.onclick = () => setOpen(true);
+      close.onclick = () => setOpen(false);
+      play.onclick = () => load('winter');
+      let touched = false;
+      drawer.addEventListener('pointerenter', () => { touched = true; });
+      drawer.addEventListener('pointerdown', () => { touched = true; });
+      setTimeout(() => setOpen(true), 900);
+      setTimeout(() => { if (!touched) setOpen(false); }, 7900);
     }
     const top = el('div', 'kr-topbar', s);
     const help = el('div', 'kr-topbar-help', top);
@@ -568,7 +583,8 @@ export class Menus {
     credit.target = '_blank';
     credit.rel = 'noopener';
     credit.title = 'Original game by Ryan Campbell on GitHub';
-    credit.innerHTML = '<svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Original by Ryan Campbell</span>';
+    credit.setAttribute('aria-label', credit.title);
+    credit.innerHTML = '<svg viewBox="0 0 16 16" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
     credit.onpointerdown = (e) => e.stopPropagation();
     credit.onclick = (e) => e.stopPropagation();
     this.syncTouchCopy(false);
