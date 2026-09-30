@@ -2386,6 +2386,12 @@ html[data-can-install] .kr-dl { display: grid; }
 @media (max-aspect-ratio: 5/4) {
   .kr-drawer { top: auto; bottom: calc(2vmin + env(safe-area-inset-bottom, 0px)); transform: translateX(calc(100% - var(--tab))); }
   .kr-drawer.open { transform: translateX(0); }
+  .kr-drawer { --tab: 128px; align-items: flex-end; }
+  .kr-drawer-tab {
+    height: 44px; padding: 0 14px; flex-direction: row; justify-content: center;
+    border-radius: 22px 0 0 22px;
+  }
+  .kr-drawer-tab-txt { writing-mode: horizontal-tb; transform: none; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .kr-drawer { transition: none; }
