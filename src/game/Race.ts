@@ -71,6 +71,8 @@ const ROCKET_WINDOW = 0.62;
 const BURNOUT_WINDOW = 1.75;
 /** seconds after the player finishes before the results settle */
 const RESULTS_DELAY = 6;
+/** The round closes the moment this many karts are home; everyone else is placed where they stand. */
+export const PODIUM = 3;
 /**
  * Clear tarmac left outside the widest grid column, metres.
  *
@@ -197,6 +199,8 @@ export class Race implements IRace {
   /** Starts expired so the first entry into `Countdown` always arms it. */
   private countdownT = 0;
   private finishedCount = 0;
+  /** Podium filled: the classification is frozen and no further finishes count. */
+  private closed = false;
   private resultsT = 0;
   private pauseEdge = false;
   /** the state to return to when the pause menu is dismissed */
@@ -266,6 +270,7 @@ export class Race implements IRace {
     this.resultsT = 0;
     this.wrongWay = false;
     this.finishedCount = 0;
+    this.closed = false;
     this.lapTimes.length = 0;
     this.bestLap = Infinity;
     // `init` arms us before the first frame, so there may be no context yet.
@@ -447,7 +452,7 @@ export class Race implements IRace {
       this.tickCountdown(ctx, dt);
     } else if (this.state === RaceState.Racing || this.state === RaceState.Finished) {
       this.raceTime += dt;
-    } else if (this.state === RaceState.Results && this.finishedCount < this.karts.length) {
+    } else if (this.state === RaceState.Results && !this.closed && this.finishedCount < this.karts.length) {
       // The clock belongs to the RACE, not to the screen in front of it. The
       // results board appears `RESULTS_DELAY` after the *player* crosses, and
       // the field behind them is usually still running — on a three-lap race,
@@ -461,7 +466,7 @@ export class Race implements IRace {
     }
     if (this.state === RaceState.Finished) {
       this.resultsT += dt;
-      if (this.resultsT > RESULTS_DELAY || this.finishedCount >= this.karts.length) {
+      if (this.closed || this.finishedCount >= this.karts.length) {
         this.state = RaceState.Results;
       }
     }
@@ -724,7 +729,7 @@ export class Race implements IRace {
 
     // --- placement ----------------------------------------------------------
     const prog = this.prog;
-    this.standings.sort((a, b) => {
+    if (!this.closed) this.standings.sort((a, b) => {
       const pa = prog[a.id];
       const pb = prog[b.id];
       if (pa.finishOrder || pb.finishOrder) {
@@ -748,7 +753,7 @@ export class Race implements IRace {
     // `lapTimes`, and since the clock is parked once the state reaches
     // `Results` the entry was ~0.00 s, which the HUD immediately promoted to
     // "best lap" while a "Lap 4" split flashed over the standings.
-    if (k.finished) return;
+    if (k.finished || this.closed) return;
 
     const t = this.raceTime - p.lapStart;
     p.lapStart = this.raceTime;
@@ -770,6 +775,10 @@ export class Race implements IRace {
       if (k.isPlayer && this.state === RaceState.Racing) {
         this.state = RaceState.Finished;
         this.resultsT = 0;
+      }
+      if (this.finishedCount >= PODIUM) {
+        this.closed = true;
+        if (this.state === RaceState.Racing || this.state === RaceState.Finished) this.state = RaceState.Results;
       }
     }
   }

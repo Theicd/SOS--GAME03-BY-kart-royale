@@ -889,12 +889,14 @@ export class Menus {
     const order: IKart[] = race.standings.length ? race.standings : race.karts;
 
     const place = player ? player.place : 1;
-    this.resultTitle.textContent =
-      place === 1 ? 'Winner' : `${place}${ordinalSuffix(place)} place`;
+    this.resultTitle.textContent = place === 1 ? 'Winner'
+      : place <= 3 ? `Podium \u00b7 ${place}${ordinalSuffix(place)} place`
+        : `${place}${ordinalSuffix(place)} place`;
+    const lead = order[0];
 
     this.standingsEl.textContent = '';
     order.forEach((k, i) => {
-      const row = el('div', 'kr-row' + (k === player ? ' you' : ''), this.standingsEl);
+      const row = el('div', 'kr-row' + (k === player ? ' you' : '') + (i < 3 ? ` kr-podium kr-podium-${i + 1}` : ''), this.standingsEl);
       row.style.setProperty('--c', cssColor(k.stats.color));
       row.style.setProperty('--d', (0.14 + i * 0.055).toFixed(3) + 's');
       const p = el('div', 'kr-row-p', row);
@@ -902,11 +904,8 @@ export class Menus {
       el('div', 'kr-row-c', row);
       el('div', 'kr-row-n', row, k.stats.name);
       const t = this.finishTimes.get(k.id);
-      const gap = player ? k.raceDistance - player.raceDistance : 0;
-      el('div', 'kr-row-t', row,
-        t !== undefined ? formatClock(t)
-          : k === player ? formatClock(race.raceTime)
-            : `${gap >= 0 ? '+' : '−'}${Math.abs(Math.round(gap))} m`);
+      const gap = lead ? Math.max(0, lead.raceDistance - k.raceDistance) : 0;
+      el('div', 'kr-row-t', row, t !== undefined ? formatClock(t) : `+${Math.round(gap)} m`);
     });
 
     // lap times + best-lap callout
