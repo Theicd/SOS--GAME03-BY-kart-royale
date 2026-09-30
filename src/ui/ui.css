@@ -2410,3 +2410,61 @@ html[data-can-install] .kr-dl { display: grid; }
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 .kr-credit:hover { color: #ffd98a; border-color: rgba(255, 217, 138, 0.6); background: rgba(40, 24, 12, 0.7); }
+
+/* Spectator queue: the race stays visible, a live ETA panel replaces the logo. */
+.kr-wait { display: none; }
+.kr-s-title.kr-watch { place-items: end center; }
+.kr-s-title.kr-watch::before {
+  background: linear-gradient(to top, rgba(12, 7, 4, 0.8), rgba(12, 7, 4, 0) 40%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.kr-s-title.kr-watch .kr-logo,
+.kr-s-title.kr-watch .kr-track-box,
+.kr-s-title.kr-watch .kr-prompt,
+.kr-s-title.kr-watch .kr-mode,
+.kr-s-title.kr-watch .kr-drawer { display: none; }
+.kr-s-title.kr-watch .kr-wait { display: flex; }
+.kr-wait {
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1vmin;
+  width: min(440px, 88vw);
+  padding: 1.8vmin 2.6vmin;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(40, 24, 12, 0.82), rgba(18, 10, 5, 0.86));
+  border: 1px solid rgba(255, 196, 92, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-family: var(--f);
+  color: #fff;
+  text-align: center;
+}
+.kr-wait-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: clamp(13px, 2.1vmin, 19px);
+}
+.kr-wait-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b3b;
+  box-shadow: 0 0 10px #ff3b3b;
+  animation: kr-live 1.2s ease-in-out infinite;
+}
+@keyframes kr-live { 50% { opacity: 0.25; } }
+.kr-wait-sub { opacity: 0.85; font-size: clamp(12px, 1.7vmin, 15px); }
+.kr-wait-bar { width: 100%; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.kr-wait-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff9a3c, #ffd76a);
+  transition: width 1s linear;
+}
+.kr-wait-eta { font-weight: 800; color: #ffd76a; letter-spacing: 0.08em; font-size: clamp(13px, 2vmin, 18px); }

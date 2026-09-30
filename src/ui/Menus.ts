@@ -225,6 +225,10 @@ export class Menus {
   private touchCopy: boolean | null = null;
   /** title: play-mode buttons; see `setOnline` */
   private playBtn!: HTMLDivElement;
+  private titleEl!: HTMLDivElement;
+  private waitHead!: HTMLSpanElement;
+  private waitFill!: HTMLElement;
+  private waitEta!: HTMLDivElement;
   private online = false;
 
   private rosterEl!: HTMLDivElement;
@@ -307,6 +311,7 @@ export class Menus {
     // flip mid-session (the iPadOS lazy mount, or a keyboard being pressed on a
     // tablet). Cached on the value, so this is a compare per frame.
     this.syncTouchCopy(ctx.input.touch);
+    this.syncWatch();
 
     // The controls screen owns input while it is up: it is a sibling overlay,
     // not one of the four screens, so nothing below it may act on a confirm.
@@ -488,6 +493,7 @@ export class Menus {
 
   private buildTitle() {
     const s = this.makeScreen('kr-s-title');
+    this.titleEl = s;
     const inner = s.firstElementChild as HTMLDivElement;
     const wrap = el('div', 'kr-stage', inner);
     wrap.style.display = 'flex';
@@ -531,6 +537,13 @@ export class Menus {
       e.stopPropagation();
       this.startRace(this.ctx);
     };
+    const wait = el('div', 'kr-wait', wrap);
+    const head = el('div', 'kr-wait-head', wait);
+    el('span', 'kr-wait-dot', head);
+    this.waitHead = el('span', '', head);
+    el('div', 'kr-wait-sub', wait, "You're in line — you race in the next round");
+    this.waitFill = el('i', '', el('div', 'kr-wait-bar', wait));
+    this.waitEta = el('div', 'kr-wait-eta', wait);
     if (MOOD === 'sunset') {
       const drawer = el('div', 'kr-drawer', s);
       const tab = el('div', 'kr-drawer-tab', drawer);
@@ -609,6 +622,24 @@ export class Menus {
     if (on) startNet(this.ctx);
     else stopNet();
     this.syncPrompt();
+  }
+
+  /** Queued behind a live race: drop the logo, show the race and a live ETA. */
+  private syncWatch() {
+    const w = this.screen === 'title' ? netHooks.wait : null;
+    this.titleEl.classList.toggle('kr-watch', !!w);
+    if (!w) return;
+    this.waitHead.textContent = w.phase === 'race' ? 'Live · race in progress' : 'Round over · next race soon';
+    if (!w.etaAt) {
+      this.waitEta.textContent = 'Estimating time…';
+      this.waitFill.style.width = '0%';
+      return;
+    }
+    const left = Math.max(0, Math.round((w.etaAt - performance.now()) / 1000));
+    this.waitEta.textContent = left > 0
+      ? `Next race in ~${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+      : 'Starting…';
+    this.waitFill.style.width = `${Math.min(100, Math.max(0, (1 - left / w.total) * 100))}%`;
   }
 
   private syncPrompt() {

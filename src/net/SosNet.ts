@@ -66,6 +66,8 @@ const GATHER_MIN_MS = 1500;
 const GATHER_MAX_MS = 15000;
 /** Host sitting on the results board rolls the next race after this. */
 const AUTO_NEXT_MS = 12000;
+/** Typical one-lap race, used for the spectators' "next race in" estimate. */
+const EST_RACE_S = 60;
 
 type Role = 'searching' | 'host' | 'client';
 
@@ -140,6 +142,8 @@ class SosNet {
   private wantNext = false;
   /** PLAY pressed while still looking for a room — start as soon as the role is known. */
   private wantStart = false;
+  private lastEta = 0;
+  private eta: { at: number; total: number; phase: 'race' | 'next' } | null = null;
 
   private samples: Sample[][] = [];
   private heartbeat = 0;
@@ -192,6 +196,7 @@ class SosNet {
     this.clearRemote();
     this.race.netDrive = null;
     netHooks.requestStart = null;
+    netHooks.wait = null;
     const pool = this.pool;
     setTimeout(() => { try { pool.destroy(); } catch { /* already closed */ } }, 1500);
     this.badge.remove();
@@ -555,7 +560,27 @@ class SosNet {
   }
 
   /** Host: lobby window and the results auto-roll, polled from `tick`. */
+  /** Host: once a second, tell queued spectators roughly when they will race. */
+  private sendEta() {
+    if (!this.peers.size || now() - this.lastEta < 1000) return;
+    this.lastEta = now();
+    const next = AUTO_NEXT_MS / 1000 + 2;
+    const total = EST_RACE_S + next;
+    const s = this.race.state;
+    let left: number, phase: 'race' | 'next' = 'race';
+    if (s === RaceState.Countdown) left = total + this.race.countdownLeft;
+    else if (this.isRacing()) left = Math.max(4, EST_RACE_S - this.race.raceTime) + next;
+    else {
+      phase = 'next';
+      left = this.resultsSince ? Math.max(2, (AUTO_NEXT_MS - (now() - this.resultsSince)) / 1000 + 2) : 3;
+    }
+    for (const p of this.peers.values()) {
+      if (p.ready && p.idx < 0) this.send(p, { t: 'eta', s: Math.round(left), total: Math.round(total), phase });
+    }
+  }
+
   private hostTick() {
+    this.sendEta();
     const s = this.race.state;
     if (this.wantStart && netHooks.booted) {
       this.wantStart = false;
@@ -598,6 +623,12 @@ class SosNet {
         this.clientStart(m.idx, Number(m.cd) || 0);
       } else if (m.t === 'spectate') {
         this.clientSpectate();
+      } else if (m.t === 'eta' && Number.isFinite(m.s) && Number.isFinite(m.total)) {
+        this.eta = {
+          at: performance.now() + Math.max(0, Math.min(600, m.s)) * 1000,
+          total: Math.max(1, Math.min(600, m.total)),
+          phase: m.phase === 'next' ? 'next' : 'race',
+        };
       } else if (m.t === 'wait' && typeof m.text === 'string') {
         this.lobbyText = m.text.slice(0, 40);
         this.refresh();
@@ -619,6 +650,8 @@ class SosNet {
     if (idx < 0 || idx >= n) return;
     this.pendingStart = null;
     this.spectating = false;
+    this.eta = null;
+    netHooks.wait = null;
     this.lobbyText = '';
     this.myIdx = idx;
     this.race.multiplayer = true;
@@ -644,6 +677,10 @@ class SosNet {
   private tick() {
     if (this.role === 'client') {
       this.wantStart = false;
+      const e = this.eta;
+      netHooks.wait = this.spectating
+        ? { etaAt: e ? e.at : 0, total: e ? e.total : EST_RACE_S, phase: e ? e.phase : 'race' }
+        : null;
       const h = this.host;
       if (h && !this.sentReady && netHooks.booted && this.race.karts.length && h.ctl?.readyState === 'open') {
         this.sentReady = true;
