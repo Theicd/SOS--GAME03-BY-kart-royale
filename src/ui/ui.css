@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    Kart Royale — UI layer.
    Everything is scoped under .kr so nothing here can leak into the canvas host.
 
@@ -2384,7 +2384,7 @@ html[data-can-install] .kr-dl { display: grid; }
 @keyframes kr-drawer-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.3); } }
 @keyframes kr-drawer-shine { 0% { left: -60%; } 45%, 100% { left: 130%; } }
 @media (max-aspect-ratio: 5/4) {
-  .kr-drawer { top: auto; bottom: 6vh; transform: translateX(calc(100% - var(--tab))); }
+  .kr-drawer { top: auto; bottom: calc(2vmin + env(safe-area-inset-bottom, 0px)); transform: translateX(calc(100% - var(--tab))); }
   .kr-drawer.open { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) {
