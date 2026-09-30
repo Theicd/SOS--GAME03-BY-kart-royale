@@ -18,10 +18,13 @@ export const netHooks: {
   wait: { etaAt: number; total: number; phase: 'race' | 'next' | 'lobby' } | null;
   /** A room nearby is about to start (epoch ms) — the title offers JOIN until then. */
   openRoom: { startsAt: number } | null;
+  /** A room with a free seat is mid-race — a new visitor goes straight into its queue. */
+  liveRace: boolean;
 } = {
   requestStart: null,
   beginRace: null,
   booted: false,
   wait: null,
   openRoom: null,
+  liveRace: false,
 };

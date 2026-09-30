@@ -73,7 +73,7 @@ const LOBBY_MS = 15000;
 
 type Role = 'searching' | 'host' | 'client';
 
-interface RoomInfo { pubkey: string; players: number; max: number; ts: number; startsAt?: number }
+interface RoomInfo { pubkey: string; players: number; max: number; ts: number; startsAt?: number; racing?: boolean }
 
 interface Peer {
   /** true on the host's end of the link */
@@ -259,7 +259,7 @@ class SosNet {
       kind: KIND_ROOM,
       created_at: nowSec(),
       tags: [['d', ROOM_TAG], ['t', ROOM_TAG]],
-      content: JSON.stringify({ v: 1, room: this.pk, players: this.humans(), max: MAX_HUMANS, closed, startsAt: closed ? 0 : this.startsAt() }),
+      content: JSON.stringify({ v: 1, room: this.pk, players: this.humans(), max: MAX_HUMANS, closed, startsAt: closed ? 0 : this.startsAt(), racing: !closed && this.role === 'host' && this.isRacing() }),
     }, this.sk);
     void Promise.allSettled(this.pool.publish(RELAYS, ev));
   }
@@ -882,12 +882,15 @@ export function watchRooms() {
   const rooms = new Map<string, RoomInfo>();
   const pick = () => {
     const cut = nowSec() - ROOM_TTL, t = Date.now();
-    let best: RoomInfo | null = null;
+    let best: RoomInfo | null = null, live = false;
     for (const r of rooms.values()) {
-      if (r.ts < cut || r.players >= MAX_HUMANS || !r.startsAt || r.startsAt <= t) continue;
+      if (r.ts < cut || r.players >= MAX_HUMANS) continue;
+      if (r.racing) live = true;
+      if (!r.startsAt || r.startsAt <= t) continue;
       if (!best || r.startsAt < best.startsAt!) best = r;
     }
     netHooks.openRoom = best ? { startsAt: best.startsAt! } : null;
+    netHooks.liveRace = live;
   };
   const sub = pool.subscribeMany(RELAYS, { kinds: [KIND_ROOM], '#t': [ROOM_TAG], since: nowSec() - 60 }, {
     onevent: (ev) => {
@@ -902,6 +905,7 @@ export function watchRooms() {
           max: MAX_HUMANS,
           ts: ev.created_at,
           startsAt: Number(c.startsAt) || 0,
+          racing: !!c.racing,
         });
         pick();
       } catch { /* not ours */ }
@@ -915,6 +919,7 @@ export function watchRooms() {
       try { sub.close(); } catch { /* closed */ }
       setTimeout(() => { try { pool.destroy(); } catch { /* closed */ } }, 500);
       netHooks.openRoom = null;
+      netHooks.liveRace = false;
     },
   };
 }

@@ -230,6 +230,8 @@ export class Menus {
   private waitBox!: HTMLDivElement;
   private waitSub!: HTMLDivElement;
   private joinLeft = -1;
+  private autoJoined = false;
+  private autoJoinUntil = 0;
   private waitFill!: HTMLElement;
   private waitEta!: HTMLDivElement;
   private online = false;
@@ -630,7 +632,17 @@ export class Menus {
 
   /** Queued behind a live race: drop the logo, show the race and a live ETA. */
   private syncWatch() {
-    const w = this.screen === 'title' ? netHooks.wait : null;
+    // A room is mid-race with a free seat: queue for it straight away, no PLAY.
+    if (!this.online && !this.autoJoined && this.screen === 'title' && netHooks.liveRace && !netHooks.openRoom) {
+      this.autoJoined = true;
+      this.autoJoinUntil = performance.now() + 15000;
+      this.startRace(this.ctx);
+    }
+    if (netHooks.wait || this.screen !== 'title') this.autoJoinUntil = 0;
+    const joining = this.autoJoinUntil > performance.now()
+      ? { etaAt: 0, total: 60, phase: 'race' as const }
+      : null;
+    const w = this.screen === 'title' ? netHooks.wait ?? joining : null;
     const lobby = w?.phase === 'lobby';
     this.titleEl.classList.toggle('kr-watch', !!w && !lobby);
     this.titleEl.classList.toggle('kr-lobby', lobby);
