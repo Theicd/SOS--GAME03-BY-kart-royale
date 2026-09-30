@@ -2469,7 +2469,7 @@ html[data-can-install] .kr-dl { display: grid; }
 }
 .kr-wait-eta { font-weight: 800; color: #ffd76a; letter-spacing: 0.08em; font-size: clamp(13px, 2vmin, 18px); }
 
-/* Lobby: the logo stays, the 10 s countdown panel replaces the buttons. */
+/* Lobby: the logo stays, the 15 s countdown panel replaces the buttons. */
 .kr-s-title.kr-lobby .kr-track-box,
 .kr-s-title.kr-lobby .kr-prompt,
 .kr-s-title.kr-lobby .kr-mode,

@@ -69,7 +69,7 @@ const AUTO_NEXT_MS = 12000;
 /** Typical one-lap race, used for the spectators' "next race in" estimate. */
 const EST_RACE_S = 60;
 /** First PLAY opens a lobby this long, so players arriving seconds later race too. */
-const LOBBY_MS = 10000;
+const LOBBY_MS = 15000;
 
 type Role = 'searching' | 'host' | 'client';
 
