@@ -1655,6 +1655,12 @@ html[data-touch-scheme="buttons"] .tc-pads { display: flex; }
   border-color: rgba(255,255,255,.6);
 }
 .tc-pause { letter-spacing: .14em; }
+/* CAM sits just right of the top-centre minimap so it covers nothing on the left. */
+.tc-cam {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: calc(50% + clamp(138px, 19.4vmin, 284px) / 2 + 12px);
+}
 
 .tc-cluster {
   position: absolute;
