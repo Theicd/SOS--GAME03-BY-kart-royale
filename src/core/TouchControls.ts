@@ -1311,8 +1311,8 @@ export class TouchControls {
   private placeCam() {
     const r = document.querySelector('.kr-map')?.getBoundingClientRect();
     if (!r || !r.width) { this.camChip.style.left = ''; return; }
-    const lamp = document.querySelector('.kr-net-lamp');
-    this.camChip.style.left = `${Math.round(r.right + 10 + (lamp ? 32 : 0))}px`;
+    const lamp = document.querySelector<HTMLElement>('.kr-net-lamp:not(.hide)');
+    this.camChip.style.left = `${Math.round(r.right + 10 + (lamp ? lamp.offsetWidth + 10 : 0))}px`;
   }
 
   update(ctx: Ctx | null, dt: number) {

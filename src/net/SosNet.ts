@@ -73,12 +73,14 @@ const LOBBY_MS = 15000;
 
 type Role = 'searching' | 'host' | 'client';
 
+const LAMP_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3.2"/><path d="M1.8 15c.4-3.6 3-5.6 6.2-5.6s5.8 2 6.2 5.6z"/></svg>';
+
 const LAMP_CSS = `
 .kr-net-lamp {
   position: fixed; z-index: 60; pointer-events: none;
   top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(50% + 120px);
-  width: 22px; height: 22px; border-radius: 50%;
-  display: grid; place-items: center;
+  min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; gap: 3px;
   font: 800 12px/1 system-ui, sans-serif; color: #062312;
   background: #3aa0ff; box-shadow: 0 0 10px #3aa0ff, 0 0 0 2px rgba(255, 255, 255, 0.35);
   animation: kr-lamp 1.2s ease-in-out infinite;
@@ -87,6 +89,8 @@ const LAMP_CSS = `
   background: #38d86b; box-shadow: 0 0 12px #38d86b, 0 0 0 2px rgba(255, 255, 255, 0.45);
   animation: none;
 }
+.kr-net-lamp svg { width: 13px; height: 13px; display: block; fill: currentColor; }
+.kr-net-lamp.hide { display: none; }
 @keyframes kr-lamp { 50% { opacity: 0.3; } }
 `;
 
@@ -185,7 +189,7 @@ class SosNet {
       document.head.appendChild(st);
     }
     this.badge = document.createElement('div');
-    this.badge.className = 'kr-net-lamp';
+    this.badge.className = 'kr-net-lamp hide';
     document.body.appendChild(this.badge);
     this.setBadge('Looking for a room…');
 
@@ -873,7 +877,7 @@ class SosNet {
     const n = this.role === 'client' ? this.roomCount : this.role === 'host' ? this.humans() : 1;
     const on = n > 1;
     this.badge.classList.toggle('on', on);
-    this.badge.textContent = on ? String(n) : '';
+    this.badge.innerHTML = LAMP_ICON + (on ? `<b>${n}</b>` : '');
     if (this.role === 'host' && n !== this.sentCount) {
       this.sentCount = n;
       for (const p of this.peers.values()) this.send(p, { t: 'n', n });
@@ -883,6 +887,8 @@ class SosNet {
   private placeLamp() {
     const r = document.querySelector('.kr-map')?.getBoundingClientRect();
     this.badge.style.left = r && r.width ? `${Math.round(r.right + 10)}px` : '';
+    const s = this.race.state;
+    this.badge.classList.toggle('hide', s !== RaceState.Countdown && s !== RaceState.Racing);
   }
 
   private refresh() {
