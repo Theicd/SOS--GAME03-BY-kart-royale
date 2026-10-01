@@ -2484,3 +2484,21 @@ html[data-can-install] .kr-dl { display: grid; }
 .kr-row.kr-podium-2 .kr-row-p { color: #e3e8ef; text-shadow: 0 0 10px rgba(227, 232, 239, 0.5); }
 .kr-row.kr-podium-3 .kr-row-p { color: #e0a36b; text-shadow: 0 0 10px rgba(224, 163, 107, 0.5); }
 .kr-row.kr-podium-3 { margin-bottom: 0.9vmin; }
+
+/* Moonlight Bay: silver picker, twinkling logo stars, one row per map in the drawer. */
+.kr-track-night .kr-track-name {
+  background: linear-gradient(180deg, #fff 15%, #dfe5ff 55%, #9aa8ff 100%);
+  -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(170, 185, 255, 0.55)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+.kr-track-night .kr-track-arrow { color: #dfe5ff; border-color: rgba(190, 200, 255, 0.5); }
+.kr-track-night .kr-track-dots i.on { background: #c6d0ff; }
+.kr-logo .kr-moon-star { animation: kr-twinkle 2.8s ease-in-out infinite; }
+@keyframes kr-twinkle { 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) { .kr-logo .kr-moon-star { animation: none; } }
+.kr-drawer-item { display: flex; flex-direction: column; gap: 4px; }
+.kr-drawer-item + .kr-drawer-item { margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(255, 217, 138, 0.25); }
+.kr-drawer-night .kr-drawer-name {
+  background: linear-gradient(180deg, #fff 20%, #dfe5ff 60%, #9aa8ff 100%);
+  -webkit-background-clip: text; background-clip: text;
+}

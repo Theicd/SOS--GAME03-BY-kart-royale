@@ -66,7 +66,9 @@
 import * as THREE from 'three';
 import type { Ctx } from '../types';
 import type { Shared } from './Props';
-import { WINTER } from '../render/Mood';
+import { NIGHT, WINTER } from '../render/Mood';
+
+const MOOD_DEFS: Record<string, string> = WINTER ? { MOOD_WINTER: '' } : NIGHT ? { MOOD_NIGHT: '' } : {};
 
 export interface SeaField {
   /** world-space min corner (x,z) of the baked field */
@@ -123,7 +125,7 @@ export class Water {
       fragmentShader: FRAG,
       fog: true,
       side: THREE.FrontSide,
-      defines: WINTER ? { ENV_NONE: '', MOOD_WINTER: '' } : { ENV_NONE: '' },
+      defines: { ENV_NONE: '', ...MOOD_DEFS },
     });
 
     this.mesh = new THREE.Mesh(geo, this.mat);
@@ -191,7 +193,7 @@ export class Water {
   private adoptEnv(env: THREE.Texture) {
     this.envTried = true;
     const m = env.mapping;
-    const mood = WINTER ? { MOOD_WINTER: '' } : {};
+    const mood = MOOD_DEFS;
     if (m === THREE.CubeReflectionMapping || m === THREE.CubeRefractionMapping) {
       this.mat.defines = { ENV_CUBE: '', ...mood };
     } else if (m === THREE.EquirectangularReflectionMapping || m === THREE.EquirectangularRefractionMapping) {
@@ -346,11 +348,16 @@ varying vec3 vShore;
 #include <fog_pars_fragment>
 ${WAVES}
 
-#ifdef MOOD_WINTER
+#if defined(MOOD_WINTER)
 const vec3 ZENITH  = vec3(0.1900, 0.2200, 0.2700);
 const vec3 HORIZON = vec3(0.3300, 0.3600, 0.4100);
 const vec3 SHALLOW = vec3(0.0700, 0.1800, 0.2000);
 const vec3 DEEP    = vec3(0.0150, 0.0450, 0.0650);
+#elif defined(MOOD_NIGHT)
+const vec3 ZENITH  = vec3(0.0030, 0.0050, 0.0120);
+const vec3 HORIZON = vec3(0.0350, 0.0450, 0.0750);
+const vec3 SHALLOW = vec3(0.0100, 0.0300, 0.0400);
+const vec3 DEEP    = vec3(0.0020, 0.0060, 0.0120);
 #else
 // ART_DIRECTION §2/§3, in linear space.
 const vec3 ZENITH  = vec3(0.0508, 0.1746, 0.5457);   // #3f74c4
@@ -358,7 +365,11 @@ const vec3 HORIZON = vec3(1.0000, 0.6308, 0.3515);   // #ffd0a0
 const vec3 SHALLOW = vec3(0.0508, 0.5841, 0.5457);   // #3fc9c4
 const vec3 DEEP    = vec3(0.0040, 0.1022, 0.1946);   // #0d5a7a
 #endif
+#ifdef MOOD_NIGHT
+const vec3 FOAM    = vec3(0.1900, 0.2100, 0.2600);   // moonlit, not sunlit
+#else
 const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
+#endif
 
 // The horizon is NOT one colour. At 14° of sun elevation it runs from a hot
 // #ffd0a0 down-sun to a dusky blue counter-glow behind you, and that spread is
@@ -371,10 +382,17 @@ const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
 // roughly a third of the sun-ward one and it is unmistakably BLUE; at a third
 // of the luminance and twice the saturation it stops being concrete and starts
 // being the deep end of a bay.
-#ifdef MOOD_WINTER
+#if defined(MOOD_WINTER)
 const vec3 HZ_ANTI = vec3(0.2500, 0.2800, 0.3300);
+#elif defined(MOOD_NIGHT)
+const vec3 HZ_ANTI = vec3(0.0120, 0.0160, 0.0300);
 #else
 const vec3 HZ_ANTI = vec3(0.1350, 0.1690, 0.2980);   // counter-glow, dusk blue
+#endif
+#ifdef MOOD_NIGHT
+const vec3 BELOW_HZ = vec3(0.0100, 0.0130, 0.0200);
+#else
+const vec3 BELOW_HZ = vec3(0.072, 0.092, 0.118);
 #endif
 
 /** Peak Fresnel. See the file header, fault (1). */
@@ -387,7 +405,7 @@ vec3 skyDome(vec3 d) {
   vec3 hz = mix(HZ_ANTI, HORIZON, smoothstep(-0.75, 0.92, az));
   vec3 c = mix(hz, ZENITH, pow(up, 0.42));
   // below the horizon the reflection ray sees haze over distant water
-  c = mix(vec3(0.072, 0.092, 0.118), c, smoothstep(-0.10, 0.015, d.y));
+  c = mix(BELOW_HZ, c, smoothstep(-0.10, 0.015, d.y));
   float mu = max(dot(d, uSunDir), 0.0);
   c += uSunCol * pow(mu, 8.0) * 0.35;        // Mie forward lobe
   c += uSunCol * pow(mu, 90.0) * 1.8;        // tight halo

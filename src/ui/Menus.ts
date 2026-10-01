@@ -16,7 +16,7 @@ import { ControlsMenu } from './ControlsMenu';
 import { SoundMenu } from './SoundMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { openInstallDialog } from './Install';
-import { MOOD, MOOD_NAMES, WINTER, type MoodId } from '../render/Mood';
+import { MOOD, MOOD_NAMES, NIGHT, WINTER, type MoodId } from '../render/Mood';
 import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet, watchRooms } from '../net/SosNet';
 
@@ -113,8 +113,38 @@ const LOGO_SVG = `
   </g>
 </svg>`;
 
+const MOON_SVG = `
+  <defs>
+    <radialGradient id="krMoonGlow" gradientUnits="userSpaceOnUse" cx="712" cy="104" r="420">
+      <stop offset="0" stop-color="#dfe8ff" stop-opacity="0.55"/>
+      <stop offset="0.22" stop-color="#8ea4ff" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#3a4a8a" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#0b1330" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="krMoonDisc" cx="0.4" cy="0.38" r="0.65">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.7" stop-color="#e6edff"/>
+      <stop offset="1" stop-color="#b4c3ec"/>
+    </radialGradient>
+  </defs>
+  <g mask="url(#krFade)"><rect width="900" height="400" fill="url(#krMoonGlow)"/></g>
+  <g fill="#eef3ff"><circle class="kr-moon-star" cx="40" cy="296" r="1.4" style="animation-delay:-0.63s"/><circle class="kr-moon-star" cx="638" cy="180" r="1.5" style="animation-delay:-2.26s"/><circle class="kr-moon-star" cx="659" cy="183" r="2.1" style="animation-delay:-1.91s"/><circle class="kr-moon-star" cx="710" cy="93" r="1.6" style="animation-delay:-2.12s"/><circle class="kr-moon-star" cx="612" cy="36" r="2.1" style="animation-delay:-1.40s"/><circle class="kr-moon-star" cx="796" cy="262" r="1.1" style="animation-delay:-1.54s"/><circle class="kr-moon-star" cx="797" cy="227" r="2.1" style="animation-delay:-1.73s"/><circle class="kr-moon-star" cx="788" cy="293" r="1.6" style="animation-delay:-1.01s"/><circle class="kr-moon-star" cx="726" cy="120" r="1.2" style="animation-delay:-0.89s"/><circle class="kr-moon-star" cx="391" cy="108" r="2.6" style="animation-delay:-1.67s"/><circle class="kr-moon-star" cx="638" cy="283" r="1.0" style="animation-delay:-0.82s"/><circle class="kr-moon-star" cx="500" cy="173" r="1.7" style="animation-delay:-0.58s"/><circle class="kr-moon-star" cx="785" cy="36" r="1.6" style="animation-delay:-1.03s"/><circle class="kr-moon-star" cx="585" cy="297" r="1.8" style="animation-delay:-0.50s"/><circle class="kr-moon-star" cx="373" cy="105" r="1.6" style="animation-delay:-1.27s"/><circle class="kr-moon-star" cx="313" cy="179" r="2.0" style="animation-delay:-0.70s"/><circle class="kr-moon-star" cx="783" cy="157" r="2.5" style="animation-delay:-1.91s"/><circle class="kr-moon-star" cx="560" cy="175" r="1.8" style="animation-delay:-2.07s"/><circle class="kr-moon-star" cx="810" cy="139" r="2.2" style="animation-delay:-0.75s"/><circle class="kr-moon-star" cx="521" cy="125" r="1.5" style="animation-delay:-1.17s"/><circle class="kr-moon-star" cx="692" cy="283" r="1.1" style="animation-delay:-2.46s"/><circle class="kr-moon-star" cx="104" cy="142" r="1.2" style="animation-delay:-0.23s"/><circle class="kr-moon-star" cx="857" cy="86" r="2.0" style="animation-delay:-0.43s"/><circle class="kr-moon-star" cx="415" cy="198" r="1.1" style="animation-delay:-2.77s"/><circle class="kr-moon-star" cx="765" cy="287" r="2.5" style="animation-delay:-2.72s"/><circle class="kr-moon-star" cx="664" cy="103" r="0.9" style="animation-delay:-0.74s"/><circle class="kr-moon-star" cx="102" cy="20" r="2.0" style="animation-delay:-0.69s"/><circle class="kr-moon-star" cx="648" cy="167" r="2.1" style="animation-delay:-0.71s"/><circle class="kr-moon-star" cx="763" cy="91" r="1.6" style="animation-delay:-2.68s"/><circle class="kr-moon-star" cx="137" cy="167" r="0.9" style="animation-delay:-2.74s"/><circle class="kr-moon-star" cx="562" cy="297" r="0.9" style="animation-delay:-2.70s"/><circle class="kr-moon-star" cx="194" cy="311" r="1.9" style="animation-delay:-2.04s"/><circle class="kr-moon-star" cx="258" cy="87" r="1.3" style="animation-delay:-1.69s"/><circle class="kr-moon-star" cx="83" cy="251" r="2.2" style="animation-delay:-2.14s"/></g>
+  <g class="kr-moon">
+    <circle cx="712" cy="104" r="50" fill="url(#krMoonDisc)"/>
+    <circle cx="694" cy="92" r="9" fill="#9fb0dc" opacity="0.35"/>
+    <circle cx="726" cy="120" r="12" fill="#9fb0dc" opacity="0.28"/>
+    <circle cx="730" cy="86" r="5" fill="#9fb0dc" opacity="0.3"/>
+  </g>`;
+
+const MOOD_BLURB: Record<MoodId, string> = {
+  sunset: 'Golden hour by the sea',
+  winter: 'Overcast skies, cold light',
+  night: 'Starry sky, moonlit sea',
+};
+
 function buildBackdrop() {
   if (WINTER) return STORM_SVG;
+  if (NIGHT) return MOON_SVG;
   return `<g mask="url(#krFade)">
     <g class="kr-logo-rays" opacity="0.8">${buildRays()}</g>
   </g>
@@ -550,30 +580,37 @@ export class Menus {
     this.waitSub = el('div', 'kr-wait-sub', wait);
     this.waitFill = el('i', '', el('div', 'kr-wait-bar', wait));
     this.waitEta = el('div', 'kr-wait-eta', wait);
-    if (MOOD === 'sunset') {
+    const fresh = (['night', 'winter'] as MoodId[]).filter((id) => id !== MOOD);
+    if (fresh.length) {
+      const label = fresh.length > 1 ? 'New maps' : 'New map';
       const drawer = el('div', 'kr-drawer', s);
       const tab = el('div', 'kr-drawer-tab', drawer);
       el('span', 'kr-drawer-dot', tab);
-      el('span', 'kr-drawer-tab-txt', tab, 'New map');
+      el('span', 'kr-drawer-tab-txt', tab, label);
       const card = el('div', 'kr-drawer-card', drawer);
       const close = el('div', 'kr-drawer-close', card);
       close.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
       close.setAttribute('aria-label', 'Close');
-      el('div', 'kr-drawer-tag', card, 'New map');
-      el('div', 'kr-drawer-name', card, MOOD_NAMES.winter);
-      el('div', 'kr-drawer-sub', card, 'Overcast skies, cold light');
-      const play = el('div', 'kr-btn kr-drawer-play', card, 'Play \u203A');
+      el('div', 'kr-drawer-tag', card, label);
+      for (const id of fresh) {
+        const item = el('div', 'kr-drawer-item kr-drawer-' + id, card);
+        el('div', 'kr-drawer-name', item, MOOD_NAMES[id]);
+        el('div', 'kr-drawer-sub', item, MOOD_BLURB[id]);
+        const play = el('div', 'kr-btn kr-drawer-play', item, 'Play \u203A');
+        play.onclick = () => load(id);
+      }
       const setOpen = (open: boolean) => drawer.classList.toggle('open', open);
       drawer.onpointerdown = (e) => e.stopPropagation();
       drawer.onclick = (e) => e.stopPropagation();
       tab.onclick = () => setOpen(true);
       close.onclick = () => setOpen(false);
-      play.onclick = () => load('winter');
-      let touched = false;
-      drawer.addEventListener('pointerenter', () => { touched = true; });
-      drawer.addEventListener('pointerdown', () => { touched = true; });
-      setTimeout(() => setOpen(true), 900);
-      setTimeout(() => { if (!touched) setOpen(false); }, 7900);
+      if (MOOD === 'sunset') {
+        let touched = false;
+        drawer.addEventListener('pointerenter', () => { touched = true; });
+        drawer.addEventListener('pointerdown', () => { touched = true; });
+        setTimeout(() => setOpen(true), 900);
+        setTimeout(() => { if (!touched) setOpen(false); }, 7900);
+      }
     }
     const top = el('div', 'kr-topbar', s);
     const help = el('div', 'kr-topbar-help', top);

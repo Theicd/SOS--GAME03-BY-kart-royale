@@ -1134,6 +1134,7 @@ uniform float uCloudCover;
 uniform vec3 uOcHz;
 uniform vec3 uOcZn;
 uniform float uOcAmt;
+uniform float uStars;
 
 varying vec3 vDir;
 
@@ -1305,12 +1306,32 @@ float hash12(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+float hash13(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.zyx + 31.32);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
 void main() {
   vec3 dir = normalize(vDir);
   float gamma = dot(dir, uSunDir);
   gHaze = krHaze(dir.xz);
 
   vec3 col = atmosphere(dir, gamma);
+
+  // Map mood stars; uStars is 0 on the authored sunset. One jittered point per
+  // cell, ~1.5 px across, twinkling, faded out into the horizon mist.
+  if (uStars > 0.0) {
+    vec3 sp = dir * 120.0;
+    vec3 id = floor(sp);
+    float h = hash13(id);
+    vec3 jit = vec3(hash13(id + 7.1), hash13(id + 3.7), hash13(id + 11.3)) - 0.5;
+    float d = length(fract(sp) - 0.5 - jit * 0.6);
+    float star = step(0.968, h) * smoothstep(0.20, 0.0, d);
+    float tw = 0.6 + 0.4 * sin(uTime * (1.3 + h * 3.0) + h * 40.0);
+    col += vec3(0.85, 0.90, 1.0) * star * tw * (h - 0.968) * 70.0 * uStars
+         * smoothstep(0.03, 0.28, dir.y);
+  }
 
   // THE DISC. Art bible §2 and §9.2 — the clearest possible statement of where
   // the key is, and the frame's only guaranteed highlight anchor.

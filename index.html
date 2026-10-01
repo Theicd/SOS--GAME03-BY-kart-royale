@@ -74,7 +74,7 @@
       (function () {
         var m = null;
         try { m = new URLSearchParams(location.search).get('map'); } catch (e) {}
-        var names = { sunset: 'Sunset Bay', winter: 'Winter Bay' };
+        var names = { sunset: 'Sunset Bay', winter: 'Winter Bay', night: 'Moonlight Bay' };
         if (!names[m]) m = 'sunset';
         var b = document.getElementById('boot');
         b.classList.add('boot-' + m);
@@ -124,6 +124,8 @@
       }
       #boot.boot-winter { background: radial-gradient(120% 90% at 50% 8%, #24507e 0%, #10223f 42%, #060b16 100%); }
       #boot.boot-winter .boot-map { color: #9fe3ff; text-shadow: 0 0 12px rgba(110, 200, 255, .6); }
+      #boot.boot-night { background: radial-gradient(120% 90% at 50% 8%, #1c2446 0%, #0a0f24 45%, #02040a 100%); }
+      #boot.boot-night .boot-map { color: #e2e8ff; text-shadow: 0 0 12px rgba(190, 205, 255, .6); }
       .boot-step {
         font-size: 2.5vmin; letter-spacing: .22em; text-transform: uppercase;
         color: rgba(233,240,250,.62); min-height: 1.2em;
