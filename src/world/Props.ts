@@ -4425,8 +4425,8 @@ function gableWedge(halfZ: number, rise: number, thick: number): THREE.BufferGeo
     const a = [x, 0, -halfZ];
     const b = [x, 0, halfZ];
     const c = [x, rise, 0];
-    if (s > 0) tri(a, b, c, [1, 0, 0]);
-    else tri(b, a, c, [-1, 0, 0]);
+    if (s > 0) tri(b, a, c, [1, 0, 0]);
+    else tri(a, b, c, [-1, 0, 0]);
   }
   // two sloping faces closing the wedge sides, and the flat bottom
   const q = (a: number[], b: number[], c: number[], dd: number[], n: number[]) => {
