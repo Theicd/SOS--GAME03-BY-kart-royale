@@ -68,6 +68,8 @@ const GATHER_MAX_MS = 15000;
 const AUTO_NEXT_MS = 12000;
 /** Typical one-lap race, used for the spectators' "next race in" estimate. */
 const EST_RACE_S = 60;
+/** Spectating one race longer than this means the host has stalled (hidden tab): drop it. */
+const STUCK_RACE_MS = 150000;
 /** First PLAY opens a lobby this long, so players arriving seconds later race too. */
 const LOBBY_MS = 15000;
 
@@ -171,6 +173,8 @@ class SosNet {
   private sentCount = 0;
   private lastEta = 0;
   private eta: { at: number; total: number; phase: 'race' | 'next' | 'lobby' } | null = null;
+  /** client: when the current stretch of watching a live race began, 0 otherwise */
+  private watchSince = 0;
 
   private samples: Sample[][] = [];
   private heartbeat = 0;
@@ -204,11 +208,25 @@ class SosNet {
       window.setInterval(() => { this.tick(); this.placeLamp(); }, 250),
     );
     addEventListener('pagehide', this.onPageHide);
+    document.addEventListener('visibilitychange', this.onVisibility);
   }
 
   private timers: number[] = [];
   private disposed = false;
   private onPageHide = () => this.leave();
+  /** A hidden tab stops animating, so its race freezes: hand the room back rather than hold everyone. */
+  private onVisibility = () => {
+    if (this.disposed) return;
+    if (document.hidden) {
+      if (this.role !== 'host') return;
+      clearInterval(this.heartbeat);
+      this.leave();
+      for (const p of [...this.peers.values()]) this.dropPeer(p, false);
+      this.role = 'searching';
+    } else if (this.role === 'searching' && !this.joining) {
+      this.becomeHost();
+    }
+  };
 
   /** Leave the room and put the race back to plain single-player. */
   dispose() {
@@ -217,6 +235,7 @@ class SosNet {
     for (const t of this.timers) { clearTimeout(t); clearInterval(t); }
     clearInterval(this.heartbeat);
     removeEventListener('pagehide', this.onPageHide);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.peers.clear();
     this.host = null;
     this.joining = null;
@@ -731,6 +750,16 @@ class SosNet {
     if (this.role === 'client') {
       this.wantStart = false;
       const e = this.eta;
+      const watching = this.spectating && (!e || e.phase === 'race');
+      if (!watching) this.watchSince = 0;
+      else if (!this.watchSince) this.watchSince = now();
+      else if (now() - this.watchSince > STUCK_RACE_MS && this.host) {
+        this.watchSince = 0;
+        try { this.host.pc.close(); } catch { /* closed */ }
+        this.lost(this.host);
+        this.wantStart = true;
+        return;
+      }
       netHooks.wait = this.spectating || e?.phase === 'lobby'
         ? { etaAt: e ? e.at : 0, total: e ? e.total : EST_RACE_S, phase: e ? e.phase : 'race' }
         : null;
