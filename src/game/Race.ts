@@ -846,6 +846,12 @@ export class Race implements IRace {
     const backwards = live && along < -0.28 && Math.abs(this.player.forwardSpeed) > 3.5;
     p.wrongT = backwards ? p.wrongT + dt : Math.max(0, p.wrongT - dt * 2.5);
 
+    // Still going the wrong way OOB_LIMIT after the warning: crane back like a trip onto the beach.
+    if (p.wrongT > 0.55 + OOB_LIMIT && p.respawnT <= 0 && !this.remote[this.player.id]) {
+      this.respawn(ctx, this.player, p);
+      p.wrongT = 0;
+    }
+
     const now = p.wrongT > 0.55;
     if (now !== this.wrongWay) {
       this.wrongWay = now;
