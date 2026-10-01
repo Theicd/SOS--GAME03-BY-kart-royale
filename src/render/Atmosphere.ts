@@ -1135,6 +1135,9 @@ uniform vec3 uOcHz;
 uniform vec3 uOcZn;
 uniform float uOcAmt;
 uniform float uStars;
+uniform float uFlash;
+uniform vec3 uFlashDir;
+uniform float uFlashSeed;
 
 varying vec3 vDir;
 
@@ -1411,6 +1414,19 @@ void main() {
   vec4 c2 = cloudLayer(dir, gamma, 980.0, 0.00042, vec2(0.00198, 0.00082), 0.515, 1.85, 1.0);
   col = mix(col, c2.rgb, c2.a);
 #endif
+
+  // Map mood lightning; uFlash is 0 outside the winter storm.
+  if (uFlash > 0.0) {
+    float fd = max(dot(dir, uFlashDir), 0.0);
+    col += vec3(0.62, 0.68, 0.85) * uFlash * (0.08 + 0.9 * pow(fd, 10.0)) * smoothstep(-0.02, 0.12, dir.y);
+    vec3 fx = normalize(vec3(-uFlashDir.z, 0.0, uFlashDir.x));
+    float y = dir.y;
+    float path = 0.010 * sin(y * 95.0 + uFlashSeed) + 0.006 * sin(y * 240.0 + uFlashSeed * 2.3)
+               + 0.003 * sin(y * 620.0 + uFlashSeed * 4.1);
+    float d = abs(dot(dir, fx) - path);
+    float span = step(0.9, fd) * smoothstep(0.0, 0.03, y) * (1.0 - smoothstep(uFlashDir.y + 0.12, uFlashDir.y + 0.18, y));
+    col += vec3(0.85, 0.9, 1.0) * uFlash * span * (smoothstep(0.0022, 0.0, d) * 6.0 + exp(-d * 160.0) * 0.8);
+  }
 
   float n = hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy + 17.31) - 1.0;
   col *= 1.0 + n * 0.0050;

@@ -762,7 +762,7 @@ export class Race implements IRace {
       this.lapTimes.push(t);
       if (t < this.bestLap) this.bestLap = t;
     }
-    ctx.bus.emit({ type: 'lap', kart: k, lap: p.lapIndex });
+    ctx.bus.emit({ type: 'lap', kart: k, lap: p.lapIndex, time: t });
 
     if (p.lapIndex >= this.totalLaps && !k.finished) {
       k.finished = true;

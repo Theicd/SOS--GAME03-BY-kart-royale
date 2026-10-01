@@ -21,6 +21,7 @@ import { ChaseCamera } from './game/Camera';
 import { HUD } from './ui/HUD';
 import { Audio } from './audio/Audio';
 import { netHooks } from './net/NetHooks';
+import { session } from './game/Session';
 import { installAppButton } from './ui/Install';
 import { applyLiteMaterials } from './render/LiteMaterials';
 
@@ -144,7 +145,7 @@ const ctx: Ctx = {
 //               must be last: its lateUpdate has to run after the chase rig's.
 const systems: System[] = [
   pipeline, input, sky, materials, track, scenery, race, items, effects, camera, hud, audio,
-  drawBudget,
+  drawBudget, session,
 ];
 
 /** Human-readable names for the boot progress readout, indexed with `systems`. */
@@ -152,7 +153,7 @@ const SYSTEM_LABELS = [
   'starting renderer', 'reading controls', 'raising the sun', 'mixing materials',
   'laying the circuit', 'dressing the bay', 'rolling out the grid', 'loading item boxes',
   'lighting the effects', 'mounting the camera', 'drawing the hud', 'tuning the engines',
-  'balancing the frame',
+  'balancing the frame', 'opening the session',
 ];
 
 function bootProgress(frac: number, label: string) {

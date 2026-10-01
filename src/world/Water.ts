@@ -214,6 +214,17 @@ export class Water {
 // ---------------------------------------------------------------------------
 
 const WAVES = /* glsl */ `
+#ifdef MOOD_WINTER
+#define KR_SEA_AMP 1.4
+#define KR_SEA_SPD 0.8
+#define KR_FOAM_T 0.7
+#define KR_CAP_N 0.25
+#else
+#define KR_SEA_AMP 1.0
+#define KR_SEA_SPD 1.0
+#define KR_FOAM_T 1.0
+#define KR_CAP_N 0.42
+#endif
 // Five directional octaves. Returns height in .x and d/dx, d/dz in .yz so the
 // normal is analytic — no normal map, therefore no tiling to spot.
 //
@@ -234,8 +245,8 @@ vec3 waveSet(vec2 p, float t, float atten, float chop) {
     vec4 w = ws[i];
     float k = 6.28318 / w.z;
     float sp = sqrt(9.81 / k);            // deep-water dispersion: long swell moves fast
-    float ph = dot(w.xy, p) * k + t * sp * 0.55;
-    float a = w.w * atten * (i > 2 ? chop : 1.0);
+    float ph = dot(w.xy, p) * k + t * sp * 0.55 * KR_SEA_SPD;
+    float a = w.w * KR_SEA_AMP * atten * (i > 2 ? chop : 1.0);
     // sharpened crests / flattened troughs, Gerstner-ish without the xz shear
     float s = sin(ph);
     float sh = s * (0.78 + 0.22 * s);
@@ -272,10 +283,11 @@ vec3 swellSet(vec2 p, float t) {
   for (int i = 0; i < 3; i++) {
     vec4 w = ss[i];
     float k = 6.28318 / w.z;
-    float ph = dot(w.xy, p) * k + t * sqrt(9.81 / k) * 0.55;
+    float ph = dot(w.xy, p) * k + t * sqrt(9.81 / k) * 0.55 * KR_SEA_SPD;
     float s = sin(ph);
-    acc.x += w.w * s * (0.78 + 0.22 * s);
-    acc.yz += w.w * k * cos(ph) * (0.78 + 0.44 * s) * w.xy;
+    float a = w.w * KR_SEA_AMP;
+    acc.x += a * s * (0.78 + 0.22 * s);
+    acc.yz += a * k * cos(ph) * (0.78 + 0.44 * s) * w.xy;
   }
   return acc;
 }
@@ -349,8 +361,8 @@ varying vec3 vShore;
 ${WAVES}
 
 #if defined(MOOD_WINTER)
-const vec3 ZENITH  = vec3(0.1900, 0.2200, 0.2700);
-const vec3 HORIZON = vec3(0.3300, 0.3600, 0.4100);
+const vec3 ZENITH  = vec3(0.1300, 0.1500, 0.1900);
+const vec3 HORIZON = vec3(0.2600, 0.2900, 0.3400);
 const vec3 SHALLOW = vec3(0.0700, 0.1800, 0.2000);
 const vec3 DEEP    = vec3(0.0150, 0.0450, 0.0650);
 #elif defined(MOOD_NIGHT)
@@ -383,7 +395,7 @@ const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
 // of the luminance and twice the saturation it stops being concrete and starts
 // being the deep end of a bay.
 #if defined(MOOD_WINTER)
-const vec3 HZ_ANTI = vec3(0.2500, 0.2800, 0.3300);
+const vec3 HZ_ANTI = vec3(0.2000, 0.2250, 0.2700);
 #elif defined(MOOD_NIGHT)
 const vec3 HZ_ANTI = vec3(0.0120, 0.0160, 0.0300);
 #else
@@ -546,13 +558,13 @@ void main() {
   foam += cliffFoam * (0.45 + 0.55 * abs(sin(vWorld.x * 0.35 + uTime * 1.9))) * lace;
   // whitecaps on the steepest crests of the near field
   float steep = length(vWaveD.yz);
-  foam += smoothstep(0.16, 0.42, steep) * 0.7 * detailFade;
+  foam += smoothstep(0.16 * KR_FOAM_T, 0.42 * KR_FOAM_T, steep) * 0.7 * detailFade;
   // ...and on the swell crests everywhere else. Broken up by a slow noise so
   // the far bay gets a scatter of white specks rather than banded stripes —
   // that scatter is one of the two or three cues that says "sea" at a
   // kilometre, and the old shader had nothing at all out there.
   float capNoise = hash21(floor(vWorld.xz * 0.22 + vec2(uTime * 0.07, uTime * 0.04)));
-  float caps = smoothstep(0.62, 0.99, sw.x / 0.95) * step(0.42, capNoise) * streak;
+  float caps = smoothstep(0.62, 0.99, sw.x / 0.95) * step(KR_CAP_N, capNoise) * streak;
   // ...but not inshore. §1 asks for GLASS-CALM water at the marina, and the
   // shore field already knows where the sheltered shelf is, so the open bay
   // gets its whitecaps and the harbour keeps its mirror.

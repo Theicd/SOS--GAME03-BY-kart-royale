@@ -17,6 +17,7 @@
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
 import { getMaterials } from '../render/Materials';
+import { WINTER } from '../render/Mood';
 
 // ---------------------------------------------------------------------------
 // Palette (ART_DIRECTION.md §3) and small math helpers
@@ -3841,6 +3842,7 @@ export function patchBackdropForm(mat: THREE.Material, u: Shared, nearD = 260, f
         .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n  vBdN = normalize(mat3(modelMatrix) * objectNormal);')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vBdW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader =
+      (WINTER ? '#define KR_BD_FOG 0.5\n' : '') +
       `varying vec3 vBdW; varying vec3 vBdN;
        uniform vec3 uCamF; uniform vec3 uSunF; uniform vec4 uBdVal;
        uniform vec3 uBdShade; uniform vec3 uBdSun;
@@ -3876,7 +3878,16 @@ export function patchBackdropForm(mat: THREE.Material, u: Shared, nearD = 260, f
              diffuseColor.rgb *= mix(uBdShade, uBdSun, lit);
              // and a warm rim on the faces that actually turn into the sun
              diffuseColor.rgb *= 1.0 + vec3(0.16, 0.11, 0.03) * smoothstep(0.58, 0.95, sf);
-           }`
+${WINTER ? `             // Winter: brown mountain rock, snow on the high, flatter ground.
+             float bdL = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+             diffuseColor.rgb = bdL * vec3(0.92, 0.72, 0.52);
+             // snow line climbs with distance so every range keeps its caps, not a white sheet
+             float bdLine = 60.0 + length(vBdW.xz) * 0.17;
+             float bdSnow = smoothstep(bdLine, bdLine + 45.0, vBdW.y + (o1 - 0.5) * 70.0 + (o2 - 0.5) * 24.0)
+                          * smoothstep(0.5, 0.82, normalize(vBdN).y);
+             vec3 bdSnowCol = vec3(0.84, 0.87, 0.93) * (0.62 + macro * 0.42 + bed * 0.12);
+             diffuseColor.rgb = mix(diffuseColor.rgb, bdSnowCol, bdSnow);
+` : ''}           }`
         )
         .replace(
           '#include <fog_fragment>',

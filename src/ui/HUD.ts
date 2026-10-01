@@ -45,6 +45,7 @@
 import './ui.css';
 import { BASE_TOP_SPEED, ItemKind, RaceState, type Ctx, type IKart, type System } from '../types';
 import { Minimap } from './Minimap';
+import { session, SESSION_ROUNDS } from '../game/Session';
 import { Menus } from './Menus';
 import { ItemIconAtlas, ITEM_NAMES, ITEM_TINT, ROULETTE_ORDER } from './ItemIcons';
 import {
@@ -359,7 +360,7 @@ export class HUD implements System {
     const tl = el('div', 'kr-tl', this.hud);
     this.lapWrap = el('div', 'kr-lap', tl);
     this.lapIn = el('div', 'kr-lap-in', this.lapWrap);
-    el('div', 'kr-label', this.lapIn, 'Lap');
+    el('div', 'kr-label', this.lapIn, 'Round');
     const lap = this.cased(this.lapIn, 'kr-lap-nums', '', (l) => {
       const cur = el('span', 'kr-lap-cur', l, '1');
       el('span', 'kr-lap-sep', l, '/');
@@ -757,10 +758,11 @@ export class HUD implements System {
     if (!player) return;
 
     // --- lap ---------------------------------------------------------------
-    const lapNow = clamp(player.lap + 1, 1, race.totalLaps);
-    setPair(this.lapCur, String(lapNow));
-    setPair(this.lapTot, String(race.totalLaps));
-    this.lapWrap.classList.toggle('final', lapNow === race.totalLaps && race.totalLaps > 1);
+    // One lap a race, so the plate counts session rounds instead.
+    const roundNow = session.round;
+    setPair(this.lapCur, String(roundNow));
+    setPair(this.lapTot, String(SESSION_ROUNDS));
+    this.lapWrap.classList.toggle('final', roundNow === SESSION_ROUNDS);
     if (player.lap !== this.prevLap) this.prevLap = player.lap;
 
     // --- timer, into three fixed-width slots -------------------------------

@@ -87,7 +87,7 @@ import {
   hazeGlsl,
 } from './Atmosphere';
 import { TUNNEL_T0, TUNNEL_T1 } from '../world/TrackLayout';
-import { MOOD_LOOK, WINTER_LOOK } from './Mood';
+import { MOOD_LOOK, WINTER, WINTER_LOOK } from './Mood';
 
 // --- tuning ------------------------------------------------------------------
 
@@ -975,13 +975,16 @@ ${hazeGlsl(model, 'krFogHaze')}
 		float krGlobal = 0.0;
 	#endif
 
-	float fogFactor = min( 1.0 - exp( -( ${K.SEA} * krAvg + krGlobal ) * krD ), ${K.MAX} );
+	float fogFactor = min( 1.0 - exp( -( ${K.SEA} * krAvg * krD + krGlobal * ${WINTER ? 'min( krD, 650.0 )' : 'krD'} ) ), ${K.MAX} );
 
 	// Aerial perspective is skylight scattered in the air between here and the
 	// eye. Inside the bore there is no sky above that air, and a third of a stop
 	// of warm haze laid over the interior was a good part of why the tunnel
 	// out-shone its own exit.
 	fogFactor *= 1.0 - krInterior * ${glslFloat(INTERIOR_FOG_CUT)};
+	#ifdef KR_BD_FOG
+		fogFactor *= KR_BD_FOG; // winter backdrop: keep the ranges readable through the storm haze
+	#endif
 
 	// CHROMA CONVERGES FASTER THAN VALUE. This is the difference between "fog"
 	// and aerial perspective, and its absence is why the backdrop read as a
@@ -1629,6 +1632,9 @@ export class Sky implements System {
   private envRT: THREE.WebGLRenderTarget | null = null;
   private cascades: Cascade[] = [];
   private frame = 0;
+  private boltAt = -10;
+  private nextBolt = 8;
+  private flashBase: number[] = [];
 
   // light-space basis, matching DirectionalLightShadow's own lookAt convention
   private readonly axisX = new THREE.Vector3();
@@ -1713,6 +1719,25 @@ export class Sky implements System {
       if (w.probeTint) c.multiply(w.probeTint);
     }
     this.probe.intensity *= w.probeIntensity;
+  }
+
+  /** Winter lightning: a bolt every 7-18 s, a double flicker that also lifts the fill lights. */
+  private storm(t: number): void {
+    const u = this.material.uniforms;
+    if (t < this.boltAt) this.boltAt = this.nextBolt = -10;
+    if (t >= this.nextBolt) {
+      this.boltAt = t;
+      this.nextBolt = t + 7 + Math.random() * 11;
+      const az = Math.random() * Math.PI * 2;
+      (u.uFlashDir.value as THREE.Vector3).set(Math.cos(az), 0.1 + Math.random() * 0.08, Math.sin(az)).normalize();
+      u.uFlashSeed.value = Math.random() * 100;
+    }
+    const e = t - this.boltAt;
+    const f = e < 0.07 ? 1 : e < 0.15 ? 0.2 : e < 0.24 ? 0.8 : Math.max(0, 0.8 * (1 - (e - 0.24) / 0.45));
+    u.uFlash.value = f;
+    if (!this.flashBase.length) this.flashBase = [this.skyFill.intensity, this.probe.intensity];
+    this.skyFill.intensity = this.flashBase[0] * (1 + f * 2.5);
+    this.probe.intensity = this.flashBase[1] * (1 + f * 0.9);
   }
 
   // -- construction -----------------------------------------------------------
@@ -1847,6 +1872,9 @@ export class Sky implements System {
         uOcZn: { value: (MOOD_LOOK ?? WINTER_LOOK).overcastZenith.clone() },
         uOcAmt: { value: MOOD_LOOK ? MOOD_LOOK.overcastAmount : 0 },
         uStars: { value: MOOD_LOOK?.stars ?? 0 },
+        uFlash: { value: 0 },
+        uFlashDir: { value: new THREE.Vector3(0, 0.12, -1).normalize() },
+        uFlashSeed: { value: 0 },
       },
       defines: { CLOUD_LAYERS: layers },
       vertexShader: SKY_VERTEX_SHADER,
@@ -1885,7 +1913,8 @@ export class Sky implements System {
    */
   private buildFog(ctx: Ctx): void {
     const h = this.model.hazeColor;
-    const fog = new THREE.FogExp2(0x000000, FOG_GLOBAL_DENSITY);
+    // winter: a light mist over the circuit on top of the storm haze
+    const fog = new THREE.FogExp2(0x000000, FOG_GLOBAL_DENSITY * (WINTER ? 5 : 1));
     fog.color.setRGB(h.x, h.y, h.z, THREE.LinearSRGBColorSpace);
     ctx.scene.fog = fog;
   }
@@ -2078,7 +2107,9 @@ export class Sky implements System {
     }
 
     const u = this.material.uniforms;
-    u.uTime.value = ctx.time;
+    // winter: the storm deck races overhead
+    u.uTime.value = WINTER ? ctx.time * 2.5 : ctx.time;
+    if (WINTER) this.storm(ctx.time);
     // True translational parallax between the cloud planes as the kart moves —
     // the low deck slides past the high cirrus exactly as it should.
     (u.uCameraXZ.value as THREE.Vector2).set(ctx.camera.position.x, ctx.camera.position.z);

@@ -309,7 +309,7 @@ export type GameEvent =
   | { type: 'item-pickup'; kart: IKart }
   | { type: 'item-use'; kart: IKart; kind: ItemKind }
   | { type: 'hit'; kart: IKart; kind: ItemKind }
-  | { type: 'lap'; kart: IKart; lap: number }
+  | { type: 'lap'; kart: IKart; lap: number; time?: number }
   | { type: 'finish'; kart: IKart; place: number }
   | { type: 'countdown'; n: number }
   | { type: 'coin'; kart: IKart }

@@ -6,6 +6,7 @@ import { RaceState, type Ctx } from '../types';
 import type { Race } from '../game/Race';
 import type { Kart } from '../kart/Kart';
 import { netHooks } from './NetHooks';
+import { session } from '../game/Session';
 
 /**
  * Online rooms, stage 1 — standalone, no accounts.
@@ -616,12 +617,14 @@ class SosNet {
     peer.idx = idx;
     this.race.remote[idx] = true;
     this.samples[idx] = [];
+    this.send(peer, { t: 'sess', ...session.snapshot() });
     this.send(peer, { t: 'start', idx, cd: this.race.countdownLeft });
   }
 
   private spectate(peer: Peer) {
     if (peer.idx >= 0) { this.race.remote[peer.idx] = false; this.samples[peer.idx] = []; }
     peer.idx = -1;
+    this.send(peer, { t: 'sess', ...session.snapshot() });
     this.send(peer, { t: 'spectate' });
   }
 
@@ -637,6 +640,7 @@ class SosNet {
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     const mine = pool.pop()!;
+    session.prepareNext();
     const remote: boolean[] = new Array(n).fill(false);
     for (const p of this.peers.values()) {
       p.idx = -1;
@@ -649,6 +653,7 @@ class SosNet {
     this.samples = [];
     this.myIdx = mine;
     for (const p of this.peers.values()) {
+      this.send(p, { t: 'sess', ...session.snapshot() });
       if (p.idx >= 0) this.send(p, { t: 'start', idx: p.idx, cd: 0 });
     }
     netHooks.beginRace(mine);
@@ -691,7 +696,11 @@ class SosNet {
     }
     if (s === RaceState.Results && !this.gatherFrom) {
       if (this.wantNext) { this.wantNext = false; this.gather(GATHER_MIN_MS); }
-      else if (!this.resultsSince) { this.resultsSince = now(); this.announce(); }
+      else if (!this.resultsSince) {
+        this.resultsSince = now();
+        this.announce();
+        for (const p of this.peers.values()) this.send(p, { t: 'sess', ...session.snapshot() });
+      }
       else if (now() - this.resultsSince > AUTO_NEXT_MS) this.gather(GATHER_MIN_MS);
       else {
         this.setLobby(`Next race in ${Math.ceil((AUTO_NEXT_MS - (now() - this.resultsSince)) / 1000)}s`);
@@ -730,6 +739,8 @@ class SosNet {
         this.clientStart(m.idx, Number(m.cd) || 0);
       } else if (m.t === 'spectate') {
         this.clientSpectate();
+      } else if (m.t === 'sess') {
+        session.adopt(m);
       } else if (m.t === 'n' && Number.isInteger(m.n)) {
         this.roomCount = Math.max(2, Math.min(MAX_HUMANS, m.n));
         this.refresh();

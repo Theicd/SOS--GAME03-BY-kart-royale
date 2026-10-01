@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import type { Ctx, System, TrackSample } from '../types';
 import { Surface } from '../types';
 import { Water, type SeaField } from './Water';
+import { WINTER } from '../render/Mood';
 import { Foliage } from './Foliage';
 import {
   GeoAccum,
@@ -370,7 +371,9 @@ export class Scenery implements System {
     u.uTime.value = ctx.time;
     u.uCam.value.copy(ctx.camera.position);
     // Gusts: a slow envelope so the whole treeline breathes together.
-    u.uWindAmp.value = 0.72 + Math.sin(ctx.time * 0.19) * 0.26 + Math.sin(ctx.time * 0.61 + 1.7) * 0.12;
+    u.uWindAmp.value = WINTER
+      ? 1.2 + Math.sin(ctx.time * 0.31) * 0.35 + Math.sin(ctx.time * 1.17 + 1.7) * 0.2
+      : 0.72 + Math.sin(ctx.time * 0.19) * 0.26 + Math.sin(ctx.time * 0.61 + 1.7) * 0.12;
 
     _n.copy(ctx.sunDirection).transformDirection(ctx.camera.matrixWorldInverse);
     u.uSunView.value.copy(_n);

@@ -10,6 +10,7 @@
  *
  * `?ui=title|select|pause|results` forces a screen, for capture and review.
  */
+import { session, SESSION_ROUNDS } from '../game/Session';
 import { RaceState, type Ctx, type IKart, type KartStats } from '../types';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
@@ -964,5 +965,15 @@ export class Menus {
     el('b', undefined, total, 'Total');
     el('em', undefined, total,
       formatClock(player ? (this.finishTimes.get(player.id) ?? race.raceTime) : race.raceTime, 3));
+
+    // session: round counter, the lap to beat, and the trophy after the last round
+    const sb = session.best;
+    const round = el('div', 'kr-lapline', this.lapsEl);
+    el('b', undefined, round, 'Round');
+    el('em', undefined, round, `${session.round}/${SESSION_ROUNDS}`);
+    const fast = el('div', 'kr-lapline best', this.lapsEl);
+    el('b', undefined, fast, session.complete ? '\u{1F3C6} Champion' : 'Lap to beat');
+    el('em', undefined, fast, sb ? `${sb.name} \u00b7 ${formatClock(sb.time, 3)}` : '-');
+    if (session.complete && sb) this.resultTitle.textContent = `\u{1F3C6} ${sb.name} wins the session`;
   }
 }
