@@ -278,6 +278,8 @@ export class TouchControls {
   private padsWrap!: HTMLElement;
   private gasBtn!: HTMLElement;
   private autoChip!: HTMLElement;
+  private camChip!: HTMLElement;
+  private camPlaceT = 0;
   private pauseChip!: HTMLElement;
   private coachEl!: HTMLElement;
   /** public for tools/touch-feel.mjs, which reads the cached hit radii back */
@@ -392,7 +394,7 @@ export class TouchControls {
       this.setAuto(!this.auto);
       this.pulse?.([12]);
     });
-    const camChip = root.querySelector<HTMLElement>('.tc-cam')!;
+    const camChip = this.camChip = root.querySelector<HTMLElement>('.tc-cam')!;
     camChip.classList.toggle('on', isCockpit());
     onCockpitChange((on) => camChip.classList.toggle('on', on));
     camChip.addEventListener('pointerdown', (e) => {
@@ -1305,8 +1307,18 @@ export class TouchControls {
    * than a frame is a 33 ms window on a phone at 30 fps and a perfectly
    * ordinary stab at the item button.
    */
+  /** CAM rides just right of the minimap (and of the online lamp, when there is one). */
+  private placeCam() {
+    const r = document.querySelector('.kr-map')?.getBoundingClientRect();
+    if (!r || !r.width) { this.camChip.style.left = ''; return; }
+    const lamp = document.querySelector('.kr-net-lamp');
+    this.camChip.style.left = `${Math.round(r.right + 10 + (lamp ? 32 : 0))}px`;
+  }
+
   update(ctx: Ctx | null, dt: number) {
     const s = this.state;
+    this.camPlaceT -= dt;
+    if (this.camPlaceT <= 0) { this.camPlaceT = 0.25; this.placeCam(); }
     const sch = this.prefs.scheme;
 
     // --- steering source ------------------------------------------------
@@ -1659,7 +1671,7 @@ html[data-touch-scheme="buttons"] .tc-pads { display: flex; }
 .tc-cam {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 10px);
-  left: calc(50% + clamp(138px, 19.4vmin, 284px) / 2 + 12px);
+  left: calc(50% + clamp(138px, 19.4vmin, 284px) / 2 + 52px);
 }
 
 .tc-cluster {

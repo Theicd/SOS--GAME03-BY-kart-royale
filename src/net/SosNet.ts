@@ -73,6 +73,23 @@ const LOBBY_MS = 15000;
 
 type Role = 'searching' | 'host' | 'client';
 
+const LAMP_CSS = `
+.kr-net-lamp {
+  position: fixed; z-index: 60; pointer-events: none;
+  top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(50% + 120px);
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 800 12px/1 system-ui, sans-serif; color: #062312;
+  background: #3aa0ff; box-shadow: 0 0 10px #3aa0ff, 0 0 0 2px rgba(255, 255, 255, 0.35);
+  animation: kr-lamp 1.2s ease-in-out infinite;
+}
+.kr-net-lamp.on {
+  background: #38d86b; box-shadow: 0 0 12px #38d86b, 0 0 0 2px rgba(255, 255, 255, 0.45);
+  animation: none;
+}
+@keyframes kr-lamp { 50% { opacity: 0.3; } }
+`;
+
 interface RoomInfo { pubkey: string; players: number; max: number; ts: number; startsAt?: number; racing?: boolean }
 
 interface Peer {
@@ -145,6 +162,9 @@ class SosNet {
   private wantNext = false;
   /** PLAY pressed while still looking for a room — start as soon as the role is known. */
   private wantStart = false;
+  /** client: humans in the room, as last told by the host */
+  private roomCount = 2;
+  private sentCount = 0;
   private lastEta = 0;
   private eta: { at: number; total: number; phase: 'race' | 'next' | 'lobby' } | null = null;
 
@@ -158,15 +178,14 @@ class SosNet {
   constructor(ctx: Ctx, seed: RoomInfo[] = []) {
     this.ctx = ctx;
     this.race = ctx.race as unknown as Race;
+    if (!document.getElementById('kr-net-lamp-css')) {
+      const st = document.createElement('style');
+      st.id = 'kr-net-lamp-css';
+      st.textContent = LAMP_CSS;
+      document.head.appendChild(st);
+    }
     this.badge = document.createElement('div');
-    this.badge.className = 'kr-net-badge';
-    Object.assign(this.badge.style, {
-      position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 6px)', left: '50%',
-      transform: 'translateX(-50%)', zIndex: '60', pointerEvents: 'none',
-      font: '600 12px/1 system-ui, sans-serif', letterSpacing: '0.06em',
-      color: '#fff', background: 'rgba(10,20,40,0.55)', padding: '5px 10px',
-      borderRadius: '999px', border: '1px solid rgba(255,255,255,0.18)',
-    } as Partial<CSSStyleDeclaration>);
+    this.badge.className = 'kr-net-lamp';
     document.body.appendChild(this.badge);
     this.setBadge('Looking for a room…');
 
@@ -178,7 +197,7 @@ class SosNet {
     this.timers.push(
       window.setTimeout(() => void this.matchmake(), this.liveRooms().length ? 300 : LISTEN_MS),
       window.setInterval(() => this.sendPoses(), 1000 / POSE_HZ),
-      window.setInterval(() => this.tick(), 250),
+      window.setInterval(() => { this.tick(); this.placeLamp(); }, 250),
     );
     addEventListener('pagehide', this.onPageHide);
   }
@@ -650,6 +669,9 @@ class SosNet {
         this.clientStart(m.idx, Number(m.cd) || 0);
       } else if (m.t === 'spectate') {
         this.clientSpectate();
+      } else if (m.t === 'n' && Number.isInteger(m.n)) {
+        this.roomCount = Math.max(2, Math.min(MAX_HUMANS, m.n));
+        this.refresh();
       } else if (m.t === 'eta' && Number.isFinite(m.s) && Number.isFinite(m.total)) {
         this.eta = {
           at: performance.now() + Math.max(0, Math.min(600, m.s)) * 1000,
@@ -845,8 +867,22 @@ class SosNet {
     try { this.host?.pc.close(); } catch { /* closed */ }
   }
 
+  /** Online lamp: blinking blue while alone, steady green with the head count once others are in. */
   private setBadge(text: string) {
-    this.badge.textContent = text;
+    this.badge.title = text;
+    const n = this.role === 'client' ? this.roomCount : this.role === 'host' ? this.humans() : 1;
+    const on = n > 1;
+    this.badge.classList.toggle('on', on);
+    this.badge.textContent = on ? String(n) : '';
+    if (this.role === 'host' && n !== this.sentCount) {
+      this.sentCount = n;
+      for (const p of this.peers.values()) this.send(p, { t: 'n', n });
+    }
+  }
+
+  private placeLamp() {
+    const r = document.querySelector('.kr-map')?.getBoundingClientRect();
+    this.badge.style.left = r && r.width ? `${Math.round(r.right + 10)}px` : '';
   }
 
   private refresh() {
