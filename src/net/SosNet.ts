@@ -52,8 +52,13 @@ const RTC_CONFIG: RTCConfiguration = {
   iceTransportPolicy: new URLSearchParams(location.search).get('relay') === '1' ? 'relay' : 'all',
 };
 const MAX_HUMANS = 4;
-const ROOM_TTL = 20;
-const HEARTBEAT_MS = 6000;
+const ROOM_TTL = 30;
+const HEARTBEAT_MS = 10000;
+/** Room updates closer together than this are folded into one publish. */
+const ANNOUNCE_GAP_MS = 2000;
+/** A relay that refused a connection is left alone this long, doubling per failure. */
+const RELAY_BACKOFF_MS = 60000;
+const RELAY_BACKOFF_MAX_MS = 600000;
 const LISTEN_MS = 2500;
 const JOIN_TIMEOUT_MS = 12000;
 const ICE_WAIT_MS = 4000;
@@ -140,12 +145,35 @@ function packFlags(k: Kart): number {
   return dir | (tier << 2) | (k.boostTime > 0 ? 16 : 0) | (k.stunTime > 0 ? 32 : 0) | (k.airborne ? 64 : 0);
 }
 
+const relayDown = new Map<string, { until: number; fails: number }>();
+/** One relay pool for the whole page: the title-screen watcher and the room share sockets. */
+let sharedPool: SimplePool | null = null;
+function relayPool(): SimplePool {
+  sharedPool ??= new SimplePool({
+    allowConnectingToRelay: (url: string) => {
+      const d = relayDown.get(url);
+      if (!d || d.until <= Date.now()) return true;
+      // Never cut the page off entirely: with every relay benched, try anyway.
+      return [...relayDown.values()].filter((x) => x.until > Date.now()).length >= RELAYS.length;
+    },
+    onRelayConnectionFailure: (url: string) => {
+      const fails = (relayDown.get(url)?.fails ?? 0) + 1;
+      relayDown.set(url, { fails, until: Date.now() + Math.min(RELAY_BACKOFF_MAX_MS, RELAY_BACKOFF_MS * 2 ** (fails - 1)) });
+    },
+    onRelayConnectionSuccess: (url: string) => { relayDown.delete(url); },
+  } as any);
+  return sharedPool;
+}
+
 class SosNet {
   private ctx: Ctx;
   private race: Race;
   private sk = generateSecretKey();
   readonly pk = getPublicKey(this.sk);
-  private pool = new SimplePool();
+  private pool = relayPool();
+  private subs: { close(): void }[] = [];
+  private lastAnnounce = 0;
+  private announceTimer = 0;
   private convKeys = new Map<string, Uint8Array>();
   private seen = new Set<string>();
 
@@ -243,8 +271,10 @@ class SosNet {
     this.race.netDrive = null;
     netHooks.requestStart = null;
     netHooks.wait = null;
-    const pool = this.pool;
-    setTimeout(() => { try { pool.destroy(); } catch { /* already closed */ } }, 1500);
+    clearTimeout(this.announceTimer);
+    const subs = this.subs;
+    this.subs = [];
+    setTimeout(() => { for (const sub of subs) try { sub.close(); } catch { /* already closed */ } }, 1500);
     this.badge.remove();
   }
 
@@ -257,7 +287,7 @@ class SosNet {
   }
 
   private listen() {
-    this.pool.subscribeMany(RELAYS, { kinds: [KIND_ROOM], '#t': [ROOM_TAG], since: nowSec() - 60 }, {
+    this.subs.push(this.pool.subscribeMany(RELAYS, { kinds: [KIND_ROOM], '#t': [ROOM_TAG], since: nowSec() - 60 }, {
       onevent: (ev) => {
         if (ev.pubkey === this.pk) return;
         try {
@@ -274,8 +304,8 @@ class SosNet {
           });
         } catch { /* not ours */ }
       },
-    });
-    this.pool.subscribeMany(RELAYS, { kinds: [KIND_SIGNAL], '#p': [this.pk], since: nowSec() - 10 }, {
+    }));
+    this.subs.push(this.pool.subscribeMany(RELAYS, { kinds: [KIND_SIGNAL], '#p': [this.pk], since: nowSec() - 10 }, {
       onevent: (ev) => {
         if (this.seen.has(ev.id)) return;
         this.seen.add(ev.id);
@@ -283,7 +313,7 @@ class SosNet {
         try { msg = JSON.parse(nip44.decrypt(ev.content, this.convKey(ev.pubkey))); } catch { return; }
         void this.onSignal(ev.pubkey, msg);
       },
-    });
+    }));
   }
 
   private signal(to: string, msg: object) {
@@ -297,6 +327,14 @@ class SosNet {
   }
 
   private announce(closed = false) {
+    clearTimeout(this.announceTimer);
+    this.announceTimer = 0;
+    const wait = closed ? 0 : this.lastAnnounce + ANNOUNCE_GAP_MS - now();
+    if (wait > 0) {
+      this.announceTimer = window.setTimeout(() => { if (!this.disposed) this.announce(); }, wait);
+      return;
+    }
+    this.lastAnnounce = now();
     const ev = finalizeEvent({
       kind: KIND_ROOM,
       created_at: nowSec(),
@@ -949,7 +987,7 @@ const netAllowed = () => {
  */
 export function watchRooms() {
   if (watcher || instance || !netAllowed()) return;
-  const pool = new SimplePool();
+  const pool = relayPool();
   const rooms = new Map<string, RoomInfo>();
   const pick = () => {
     const cut = nowSec() - ROOM_TTL, t = Date.now();
@@ -988,7 +1026,6 @@ export function watchRooms() {
     close: () => {
       clearInterval(timer);
       try { sub.close(); } catch { /* closed */ }
-      setTimeout(() => { try { pool.destroy(); } catch { /* closed */ } }, 500);
       netHooks.openRoom = null;
       netHooks.liveRace = false;
     },
