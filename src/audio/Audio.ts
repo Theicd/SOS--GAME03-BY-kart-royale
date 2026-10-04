@@ -73,7 +73,7 @@ const SFX_TRIM: Record<string, number> = {
   shell: 14, plop: 9, bombThrow: 17, star: 9, mushroom: 15,
   ui: 16, 'ui:confirm': 5, 'ui:start': 5, 'ui:back': 5, 'ui:cancel': 5, 'ui:pause': 5, 'ui:resume': 5,
   'ui:move': 15, 'ui:hover': 15, 'ui:burnout': 8, 'ui:respawn': 0, 'ui:respawn-rival': 9,
-  'ui:wrong-way': 11, 'ui:wrong-way-clear': 8,
+  'ui:wrong-way': 11, 'ui:wrong-way-clear': 8, 'ui:jackpot': 4,
 };
 
 /** Six-speed box. Engine frequency is firing rate, so this is the whole feel. */
@@ -1994,6 +1994,15 @@ export class Audio implements System {
       case 'wrong-way-clear':
         this.blip(dest, 880, 0.14, 0.1, 'triangle', 590);
         break;
+      case 'jackpot': {
+        // slot machine: the reel ticks, a bell run as the reels land, then a coin shower
+        this.lastAt.delete('roulette');
+        this.roulette(dest);
+        const run = [72, 76, 79, 84, 88];
+        for (let i = 0; i < run.length; i++) this.bell(dest, mtof(run[i]), i === run.length - 1 ? 1.3 : 0.35, 0.16, 1.9 + i * 0.09);
+        for (let i = 0; i < 12; i++) this.blip(dest, i % 2 ? 1976 : 1319, 0.05, 0.08, 'square', 0, 2.4 + i * 0.07);
+        break;
+      }
       default:
         this.blip(dest, 600, 0.06, 0.11, 'square');
         break;

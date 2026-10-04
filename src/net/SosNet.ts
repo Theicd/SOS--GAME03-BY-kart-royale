@@ -7,6 +7,7 @@ import type { Race } from '../game/Race';
 import type { Kart } from '../kart/Kart';
 import { netHooks } from './NetHooks';
 import { session } from '../game/Session';
+import { names, cleanName } from '../game/Names';
 
 /**
  * Online rooms, stage 1 — standalone, no accounts.
@@ -116,6 +117,8 @@ interface Peer {
   open: boolean;
   /** host side: the client has finished loading and can race */
   ready: boolean;
+  /** host: the name this peer races under */
+  name?: string;
 }
 
 interface Sample {
@@ -375,6 +378,7 @@ class SosNet {
   private becomeHost() {
     this.role = 'host';
     this.host = null;
+    names.remote = null;
     this.announce();
     clearInterval(this.heartbeat);
     this.heartbeat = window.setInterval(() => {
@@ -603,6 +607,13 @@ class SosNet {
     return { ready, total };
   }
 
+  /** Host: session state plus every kart's name, so all screens show the same line-up. */
+  private sessMsg() {
+    names.humans.clear();
+    for (const p of this.peers.values()) if (p.idx >= 0 && p.name) names.humans.set(p.idx, p.name);
+    return { t: 'sess', ...session.snapshot(), nm: names.list(this.race.karts.length, this.myIdx) };
+  }
+
   private freeKart(): number {
     const n = this.race.karts.length;
     const taken = new Set<number>([this.race.selectedKart]);
@@ -617,14 +628,14 @@ class SosNet {
     peer.idx = idx;
     this.race.remote[idx] = true;
     this.samples[idx] = [];
-    this.send(peer, { t: 'sess', ...session.snapshot() });
+    this.send(peer, this.sessMsg());
     this.send(peer, { t: 'start', idx, cd: this.race.countdownLeft });
   }
 
   private spectate(peer: Peer) {
     if (peer.idx >= 0) { this.race.remote[peer.idx] = false; this.samples[peer.idx] = []; }
     peer.idx = -1;
-    this.send(peer, { t: 'sess', ...session.snapshot() });
+    this.send(peer, this.sessMsg());
     this.send(peer, { t: 'spectate' });
   }
 
@@ -653,7 +664,7 @@ class SosNet {
     this.samples = [];
     this.myIdx = mine;
     for (const p of this.peers.values()) {
-      this.send(p, { t: 'sess', ...session.snapshot() });
+      this.send(p, this.sessMsg());
       if (p.idx >= 0) this.send(p, { t: 'start', idx: p.idx, cd: 0 });
     }
     netHooks.beginRace(mine);
@@ -699,7 +710,7 @@ class SosNet {
       else if (!this.resultsSince) {
         this.resultsSince = now();
         this.announce();
-        for (const p of this.peers.values()) this.send(p, { t: 'sess', ...session.snapshot() });
+        for (const p of this.peers.values()) this.send(p, this.sessMsg());
       }
       else if (now() - this.resultsSince > AUTO_NEXT_MS) this.gather(GATHER_MIN_MS);
       else {
@@ -741,6 +752,7 @@ class SosNet {
         this.clientSpectate();
       } else if (m.t === 'sess') {
         session.adopt(m);
+        if (Array.isArray(m.nm)) names.remote = m.nm.slice(0, 16).map((v: unknown, i: number) => cleanName(v) || names.bot(i));
       } else if (m.t === 'n' && Number.isInteger(m.n)) {
         this.roomCount = Math.max(2, Math.min(MAX_HUMANS, m.n));
         this.refresh();
@@ -757,7 +769,7 @@ class SosNet {
       return;
     }
     if (this.role !== 'host') return;
-    if (m.t === 'ready') this.onPeerReady(peer);
+    if (m.t === 'ready') { peer.name = cleanName(m.nm) || undefined; this.onPeerReady(peer); }
     else if (m.t === 'req') {
       if (!peer.ready) return;
       if (this.isRacing()) { if (peer.idx < 0) this.spectate(peer); }
@@ -815,7 +827,7 @@ class SosNet {
       const h = this.host;
       if (h && !this.sentReady && netHooks.booted && this.race.karts.length && h.ctl?.readyState === 'open') {
         this.sentReady = true;
-        this.send(h, { t: 'ready' });
+        this.send(h, { t: 'ready', nm: names.player });
       }
       const p = this.pendingStart;
       if (p && this.race.karts.length && netHooks.beginRace) this.clientStart(p.idx, p.cd);
@@ -966,7 +978,9 @@ class SosNet {
     const r = document.querySelector('.kr-map')?.getBoundingClientRect();
     this.badge.style.left = r && r.width ? `${Math.round(r.right + 10)}px` : '';
     const s = this.race.state;
-    this.badge.classList.toggle('hide', s !== RaceState.Countdown && s !== RaceState.Racing);
+    // only in the race itself: behind the title screen the attract-mode race is also "Racing"
+    const onTitle = !!document.querySelector('.kr-s-title.on');
+    this.badge.classList.toggle('hide', onTitle || (s !== RaceState.Countdown && s !== RaceState.Racing));
   }
 
   private refresh() {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Menus — title, character select, pause and results.
  *
  * These are a *view* of `IRace.state`, never a driver of it: `state` is
@@ -10,7 +10,9 @@
  *
  * `?ui=title|select|pause|results` forces a screen, for capture and review.
  */
-import { session, SESSION_ROUNDS } from '../game/Session';
+import { session, SESSION_ROUNDS, ROUND_POINTS, MEDALS } from '../game/Session';
+import { names, NAME_MAX } from '../game/Names';
+import { hiscores, type HiScore } from '../game/HighScores';
 import { RaceState, type Ctx, type IKart, type KartStats } from '../types';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
 import { ControlsMenu } from './ControlsMenu';
@@ -22,6 +24,9 @@ import { netHooks } from '../net/NetHooks';
 import { startNet, stopNet, watchRooms } from '../net/SosNet';
 
 export type ScreenName = 'none' | 'title' | 'select' | 'pause' | 'results';
+
+/** Pause between the rounds of a session before the next one rolls on its own. */
+const NEXT_ROUND_MS = 10000;
 
 /** Stat display ranges — the roster multipliers live inside these. */
 const STAT_RANGE: [number, number] = [0.74, 1.24];
@@ -242,6 +247,15 @@ export class Menus {
   private resultsBuilt = false;
   /** How many karts were classified when the board was last built. */
   private resultsFinished = -1;
+  private resultsPending = true;
+  /** session the win celebration last played for */
+  private celebratedGen = -1;
+  /** between rounds: countdown panel that replaces the results buttons */
+  private nextHead!: HTMLSpanElement;
+  private nextFill!: HTMLElement;
+  private nextEta!: HTMLDivElement;
+  private nextAt = 0;
+  private nextFired = false;
   private finishTimes = new Map<number, number>();
   private lastRaceTime = 0;
 
@@ -400,10 +414,12 @@ export class Menus {
     // rebuilds, not a per-frame one.
     if (want === 'results') {
       const done = ctx.race.karts.reduce((n, k) => n + (k.finished ? 1 : 0), 0);
-      if (!this.resultsBuilt || done !== this.resultsFinished) {
+      if (!this.resultsBuilt || done !== this.resultsFinished || session.pending !== this.resultsPending) {
+        this.resultsPending = session.pending;
         this.resultsFinished = done;
         this.fillResults(ctx);
       }
+      this.syncNext(ctx);
     } else if (want === 'pause') {
       this.fillPauseOrder(ctx);
     }
@@ -568,12 +584,32 @@ export class Menus {
     // never brought along, so an iPad in desktop mode got on-screen controls and
     // the words "Press Enter to Start" above them.
     this.titlePrompt = el('div', 'kr-prompt', wrap);
+    // driver name: saved on this device, shown on the board and in the session table
     const mode = el('div', 'kr-mode', wrap);
+    const nameBox = el('label', 'kr-name', mode);
+    el('span', 'kr-name-label', nameBox, 'Driver');
+    const nameIn = el('input', 'kr-name-input', nameBox);
+    nameIn.type = 'text';
+    nameIn.maxLength = NAME_MAX;
+    nameIn.placeholder = 'Your name';
+    nameIn.autocomplete = 'off';
+    nameIn.spellcheck = false;
+    nameIn.value = names.player;
+    nameIn.oninput = () => names.setPlayer(nameIn.value);
+    nameIn.onblur = () => { nameIn.value = names.player; };
+    for (const ev of ['pointerdown', 'click', 'touchstart', 'keyup'] as const) nameIn.addEventListener(ev, (e) => e.stopPropagation());
+    nameIn.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' || e.key === 'Escape') nameIn.blur();
+    });
     this.playBtn = el('div', 'kr-btn kr-btn-mode kr-btn-online', mode, 'PLAY');
     this.playBtn.onclick = (e) => {
       e.stopPropagation();
       this.startRace(this.ctx);
     };
+    const hsBtn = el('div', 'kr-btn kr-btn-hs kr-hs-corner', s, '\u{1F3C6} Scores');
+    hsBtn.onpointerdown = (e) => e.stopPropagation();
+    hsBtn.onclick = (e) => { e.stopPropagation(); this.showHiscores(s); };
     const wait = this.waitBox = el('div', 'kr-wait', wrap);
     const head = el('div', 'kr-wait-head', wait);
     el('span', 'kr-wait-dot', head);
@@ -581,9 +617,10 @@ export class Menus {
     this.waitSub = el('div', 'kr-wait-sub', wait);
     this.waitFill = el('i', '', el('div', 'kr-wait-bar', wait));
     this.waitEta = el('div', 'kr-wait-eta', wait);
-    const fresh = (['night', 'winter'] as MoodId[]).filter((id) => id !== MOOD);
+    // every other map, so the original Sunset Bay is one tap away from the new ones too
+    const fresh = ids.filter((id) => id !== MOOD);
     if (fresh.length) {
-      const label = fresh.length > 1 ? 'New maps' : 'New map';
+      const label = MOOD === 'sunset' ? (fresh.length > 1 ? 'New maps' : 'New map') : 'More maps';
       const drawer = el('div', 'kr-drawer', s);
       const tab = el('div', 'kr-drawer-tab', drawer);
       el('span', 'kr-drawer-dot', tab);
@@ -863,6 +900,14 @@ export class Menus {
     right.style.flexDirection = 'column';
     this.lapsEl = el('div', 'kr-laps', right);
 
+    // mid-session: a countdown to the next round instead of the two buttons
+    const next = el('div', 'kr-wait lobby kr-next kr-stage', inner);
+    const nh = el('div', 'kr-wait-head', next);
+    el('span', 'kr-wait-dot', nh);
+    this.nextHead = el('span', '', nh);
+    this.nextFill = el('i', '', el('div', 'kr-wait-bar', next));
+    this.nextEta = el('div', 'kr-wait-eta', next);
+
     const list = el('div', 'kr-menu-list kr-stage', inner);
     const again = el('div', 'kr-btn', list, 'Race again');
     again.onclick = () => this.startRace(this.ctx);
@@ -934,7 +979,7 @@ export class Menus {
 
     this.standingsEl.textContent = '';
     order.forEach((k, i) => {
-      const row = el('div', 'kr-row' + (k === player ? ' you' : '') + (i < 3 ? ` kr-podium kr-podium-${i + 1}` : ''), this.standingsEl);
+      const row = el('div', 'kr-row kr-pts-on' + (k === player ? ' you' : '') + (i < 3 ? ` kr-podium kr-podium-${i + 1}` : ''), this.standingsEl);
       row.style.setProperty('--c', cssColor(k.stats.color));
       row.style.setProperty('--d', (0.14 + i * 0.055).toFixed(3) + 's');
       const p = el('div', 'kr-row-p', row);
@@ -944,6 +989,12 @@ export class Menus {
       const t = this.finishTimes.get(k.id);
       const gap = lead ? Math.max(0, lead.raceDistance - k.raceDistance) : 0;
       el('div', 'kr-row-t', row, t !== undefined ? formatClock(t) : `+${Math.round(gap)} m`);
+      // this round's medal and points, and the running session total
+      const gain = ROUND_POINTS[i] ?? 0;
+      const total = (session.score(k.stats.name)?.pts ?? 0) + (session.pending ? gain : 0);
+      const sc = el('div', 'kr-row-s', row);
+      el('b', undefined, sc, `${MEDALS[i] ?? ''} +${gain}`);
+      el('em', undefined, sc, `${total} pts`);
     });
 
     // lap times + best-lap callout
@@ -952,11 +1003,13 @@ export class Menus {
     let best = -1;
     for (let i = 0; i < laps.length; i++) if (best < 0 || laps[i] < laps[best]) best = i;
 
-    const callout = el('div', 'kr-best', this.lapsEl);
-    el('b', undefined, callout, 'Best lap');
-    el('em', undefined, callout, best >= 0 ? formatClock(laps[best], 3) : '—:—.———');
+    if (race.totalLaps > 1) {
+      const callout = el('div', 'kr-best', this.lapsEl);
+      el('b', undefined, callout, 'Best lap');
+      el('em', undefined, callout, best >= 0 ? formatClock(laps[best], 3) : '—:—.———');
+    }
 
-    for (let i = 0; i < race.totalLaps; i++) {
+    for (let i = 0; race.totalLaps > 1 && i < race.totalLaps; i++) {
       const line = el('div', 'kr-lapline' + (i === best ? ' best' : ''), this.lapsEl);
       el('b', undefined, line, `Lap ${i + 1}`);
       el('em', undefined, line, i < laps.length ? formatClock(laps[i], 3) : '—');
@@ -975,5 +1028,137 @@ export class Menus {
     el('b', undefined, fast, session.complete ? '\u{1F3C6} Champion' : 'Lap to beat');
     el('em', undefined, fast, sb ? `${sb.name} \u00b7 ${formatClock(sb.time, 3)}` : '-');
     if (session.complete && sb) this.resultTitle.textContent = `\u{1F3C6} ${sb.name} wins the session`;
+
+    // session points table, top 5
+    const table = session.table;
+    if (table.length) {
+      el('div', 'kr-pts-head', this.lapsEl).textContent = 'Session points';
+      const grid = el('div', 'kr-pts-grid', this.lapsEl);
+      table.slice(0, 6).forEach((s, i) => {
+        const line = el('div', 'kr-pts-line' + (player && s.name === player.stats.name ? ' you' : ''), grid);
+        const m = s.medals.map((c, j) => (c ? MEDALS[j] + (c > 1 ? '\u00d7' + c : '') : '')).filter(Boolean).join(' ');
+        el('b', undefined, line, `${i + 1}. ${s.name} ${m}`);
+        el('em', undefined, line, `${s.pts}`);
+      });
+    }
+
+    if (session.complete && !session.pending && this.celebratedGen !== session.gen) {
+      this.celebratedGen = session.gen;
+      this.celebrate(ctx);
+    }
+
+    // last round: the arcade table, with this session's entry lit up
+    if (session.complete) {
+      const f = session.filed;
+      const head = el('div', 'kr-pts-head kr-hs-head', this.lapsEl);
+      head.textContent = f && f.rank >= 0 ? `\u2B50 New high score \u00b7 #${f.rank + 1}` : 'High scores';
+      const grid = el('div', 'kr-pts-grid', this.lapsEl);
+      hiscores.top(4).forEach((h, i) => this.hiscoreLine(grid, h, i, f?.at));
+    }
+  }
+
+  /**
+   * End of session: a slot machine that lands on what the player won - three
+   * trophies for the champion, three golds for the points leader, otherwise
+   * their best medal. Tap or wait and it clears off the results board.
+   */
+  private celebrate(ctx: Ctx) {
+    const screen = this.screens.results;
+    screen.querySelector('.kr-slot-veil')?.remove();
+    const player = ctx.race.player;
+    const me = player ? player.stats.name : '';
+    const champ = session.best?.name ?? '';
+    const table = session.table;
+    const leader = table[0]?.name ?? '';
+    const mine = table.find((s) => s.name === me);
+    const TROPHY = '\u{1F3C6}', STAR = '\u2B50';
+    let sym = STAR, head = 'Session over';
+    if (me && me === champ) { sym = TROPHY; head = 'Jackpot! Fastest lap'; }
+    else if (me && me === leader) { sym = MEDALS[0]; head = 'Points leader'; }
+    else if (mine) {
+      const j = mine.medals.findIndex((c) => c > 0);
+      if (j >= 0) { sym = MEDALS[j]; head = 'Medal haul'; }
+    }
+    const pool = [TROPHY, MEDALS[0], MEDALS[1], MEDALS[2], STAR, '\u{1F3C1}', '\u{1F352}', '\u{1F48E}'];
+
+    const veil = el('div', 'kr-slot-veil', screen);
+    const box = el('div', 'kr-slot', veil);
+    el('div', 'kr-slot-head', box, head);
+    const reels = el('div', 'kr-slot-reels', box);
+    for (let r = 0; r < 3; r++) {
+      const reel = el('div', 'kr-slot-reel', reels);
+      const strip = el('div', 'kr-slot-strip', reel);
+      const n = 14 + r * 4;
+      for (let i = 0; i < n; i++) el('span', undefined, strip, pool[Math.floor(Math.random() * pool.length)]);
+      el('span', undefined, strip, sym);
+      strip.style.setProperty('--n', String(n));
+      strip.style.animationDuration = (1.1 + r * 0.4).toFixed(2) + 's';
+    }
+    el('div', 'kr-slot-win', box, champ ? `${TROPHY} ${champ} wins the session` : '');
+    const f = session.filed;
+    const line = mine ? `${me} \u00b7 ${mine.pts} pts` + (f && f.rank >= 0 ? ` \u00b7 high score #${f.rank + 1}` : '') : '';
+    el('div', 'kr-slot-you', box, line);
+    el('div', 'kr-slot-hint', box, 'Tap to continue');
+    const coins = el('div', 'kr-slot-coins', veil);
+    for (let i = 0; i < 26; i++) {
+      const c = el('i', undefined, coins, '\u{1FA99}');
+      c.style.left = (Math.random() * 100).toFixed(1) + '%';
+      c.style.animationDelay = (2.2 + Math.random() * 1.4).toFixed(2) + 's';
+      c.style.animationDuration = (1.4 + Math.random() * 1.2).toFixed(2) + 's';
+    }
+    ctx.bus.emit({ type: 'ui', name: 'jackpot' });
+    const close = () => { veil.classList.add('out'); window.setTimeout(() => veil.remove(), 400); };
+    const auto = window.setTimeout(close, 7000);
+    veil.onpointerdown = (e) => e.stopPropagation();
+    veil.onclick = (e) => { e.stopPropagation(); window.clearTimeout(auto); close(); };
+  }
+
+  /** Between rounds the results board counts down and rolls the next round itself. */
+  private syncNext(ctx: Ctx) {
+    const between = !session.complete;
+    this.screens.results.classList.toggle('kr-between', between);
+    if (!between) { this.nextAt = 0; return; }
+    const round = Math.min(SESSION_ROUNDS, session.round + 1);
+    if (ctx.race.state !== RaceState.Results) {
+      this.nextAt = 0;
+      this.nextHead.textContent = 'Waiting for the field';
+      this.nextEta.textContent = '';
+      this.nextFill.style.width = '0%';
+      return;
+    }
+    const t = performance.now();
+    if (!this.nextAt) { this.nextAt = t + NEXT_ROUND_MS; this.nextFired = false; }
+    const left = Math.max(0, this.nextAt - t);
+    this.nextHead.textContent = `Round ${round} of ${SESSION_ROUNDS}`;
+    this.nextEta.textContent = left > 0 ? `Starts in ${Math.ceil(left / 1000)}s` : 'Starting\u2026';
+    this.nextFill.style.width = `${Math.min(100, (1 - left / NEXT_ROUND_MS) * 100).toFixed(1)}%`;
+    if (left <= 0 && !this.nextFired) { this.nextFired = true; this.startRace(ctx); }
+  }
+
+  private hiscoreLine(parent: HTMLElement, h: HiScore, i: number, mine?: number) {
+    const line = el('div', 'kr-pts-line' + (h.at === mine ? ' you kr-hs-new' : ''), parent);
+    const m = h.medals.map((c, j) => (c ? MEDALS[j] + (c > 1 ? '\u00d7' + c : '') : '')).filter(Boolean).join(' ');
+    el('b', undefined, line, `${i + 1}. ${h.name} ${m}`);
+    el('em', undefined, line, `${h.pts}`);
+  }
+
+  /** Title: the full arcade table in an overlay; any tap closes it. */
+  private showHiscores(parent: HTMLElement) {
+    const veil = el('div', 'kr-hs-veil', parent);
+    const card = el('div', 'kr-hs-card', veil);
+    el('div', 'kr-title kr-gold kr-hs-title', card, 'High scores');
+    const list = el('div', 'kr-hs-list', card);
+    hiscores.top().forEach((h, i) => {
+      const row = el('div', 'kr-hs-row' + (i < 3 ? ` kr-hs-top${i + 1}` : ''), list);
+      el('span', 'kr-hs-rank', row, `${i + 1}`);
+      el('span', 'kr-hs-name', row, h.name);
+      el('span', 'kr-hs-medals', row, h.medals.map((c, j) => (c ? MEDALS[j] + (c > 1 ? '\u00d7' + c : '') : '')).filter(Boolean).join(' '));
+      el('span', 'kr-hs-lap', row, h.lap > 0 ? formatClock(h.lap, 3) : '');
+      el('span', 'kr-hs-pts', row, `${h.pts}`);
+    });
+    el('div', 'kr-hs-hint', card, 'Tap to close');
+    const close = (e: Event) => { e.stopPropagation(); veil.remove(); };
+    veil.onclick = close;
+    veil.onpointerdown = (e) => e.stopPropagation();
   }
 }

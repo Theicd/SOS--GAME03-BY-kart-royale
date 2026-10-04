@@ -604,6 +604,8 @@ const POSE_SPEED_FULL = 9;
 const DRIFT_THRUST = 3.0;
 
 const AIR_STEER = 1.5; // rad/s of yaw authority with no wheels down
+/** speed a trap or item hit drops the kart to, m/s (30 km/h) - it slows, it does not stop */
+const HIT_CRAWL = 30 / 3.6;
 const TRICK_MIN_AIR = 0.3;
 
 const WALL_RESTITUTION = 0.28;
@@ -1624,9 +1626,17 @@ export class Kart implements IKart {
     } else if (!grounded) {
       this.yawRate += (this.spinDir * 9 - this.yawRate) * smooth(9, h);
     } else {
-      // hit on the ground: no pirouette, the kart just brakes to a stop
+      // hit on the ground: no pirouette, the kart drops to crawl speed and keeps rolling
       this.yawRate -= this.yawRate * clamp(8 * h, 0, 1);
-      this.velocity.multiplyScalar(1 - clamp(2.6 * h, 0, 0.5));
+      const vUp = this.velocity.dot(this.up);
+      _planar.copy(this.velocity).addScaledVector(this.up, -vUp);
+      const sp = _planar.length();
+      let target = sp;
+      if (sp > HIT_CRAWL) target = sp + (HIT_CRAWL - sp) * clamp(4 * h, 0, 0.5);
+      else if (sp > HIT_CRAWL * 0.5) target = HIT_CRAWL;
+      if (sp > 1e-3 && target !== sp) {
+        this.velocity.copy(_planar.multiplyScalar(target / sp)).addScaledVector(this.up, vUp);
+      }
     }
     this.yawRate = clamp(this.yawRate, -7, 7);
     this.yawRate -= this.yawRate * clamp(1.1 * h, 0, 0.5);

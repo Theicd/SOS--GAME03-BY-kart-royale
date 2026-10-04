@@ -232,7 +232,8 @@ export class Race implements IRace {
     this.ctx = ctx;
     const n = Math.min(RACER_COUNT, ROSTER.length);
     for (let i = 0; i < n; i++) {
-      const k = new Kart(i, i === 0, ROSTER[i]);
+      // own copy: the display name is rewritten per session (see Names)
+      const k = new Kart(i, i === 0, { ...ROSTER[i] });
       ctx.scene.add(k.object);
       this.karts.push(k);
       this.prog.push({
