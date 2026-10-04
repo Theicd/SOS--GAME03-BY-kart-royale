@@ -55,6 +55,27 @@ const _vel = new THREE.Vector3();
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+/** Dry engine level inside the tunnel, so the echo replaces loudness instead of adding to it. */
+const TUNNEL_DRY = 0.7;
+
+/**
+ * Per-sound level trims in dB. Measured with every bus at 100%, most one-shots
+ * sat 10-30 dB under the engine + road bed and were simply never heard, while
+ * the explosion and the bells sat above it. Each value moves its sound to about
+ * the engine's level (-20 dB), key race cues a little above, small ticks below.
+ * Keys match the numbered entries in sounds.html.
+ */
+const SFX_TRIM: Record<string, number> = {
+  countdown: 8, go: 6, lap: 0, finish: -5,
+  coin: 13, roulette: 17, rivalPick: 9,
+  hop: 22, scrub: 20, boost: 6, wall: 11, bump: 15,
+  explosion: -3, slip: 12, zap: 10, dizzy: 5,
+  shell: 14, plop: 9, bombThrow: 17, star: 9, mushroom: 15,
+  ui: 16, 'ui:confirm': 5, 'ui:start': 5, 'ui:back': 5, 'ui:cancel': 5, 'ui:pause': 5, 'ui:resume': 5,
+  'ui:move': 15, 'ui:hover': 15, 'ui:burnout': 8, 'ui:respawn': 0, 'ui:respawn-rival': 9,
+  'ui:wrong-way': 11, 'ui:wrong-way-clear': 8,
+};
+
 /** Six-speed box. Engine frequency is firing rate, so this is the whole feel. */
 const GEARS = 6;
 const GEAR_SPAN = 1 / GEARS;
@@ -1074,6 +1095,17 @@ export class Audio implements System {
     return v ? v.sfxIn : s.sfx;
   }
 
+  /** Route a one-shot through its SFX_TRIM level; the trim node is dropped once the sound is over. */
+  at(dest: AudioNode, key: string): AudioNode {
+    const db = SFX_TRIM[key] ?? 0;
+    const s = this.synth;
+    if (!db || !s) return dest;
+    const g = s.gain(Math.pow(10, db / 20));
+    g.connect(dest);
+    setTimeout(() => { try { g.disconnect(); } catch { /* gone */ } }, 4000);
+    return g;
+  }
+
   /** Per-key rate limit so a pile-up cannot machine-gun a single sound. */
   private gate(key: string, minGap: number): boolean {
     const s = this.synth;
@@ -1120,8 +1152,10 @@ export class Audio implements System {
     const inTunnel = player && player.t > 0.505 && player.t < 0.625 ? 1 : 0;
     if (inTunnel !== this.tunnel) {
       this.tunnel = inTunnel;
-      s.glide(s.reverbReturn.gain, inTunnel ? 1.35 : 0.5, 0.25, now);
-      if (this.engineSend) s.glide(this.engineSend.gain, inTunnel ? 0.16 : 0.025, 0.25, now);
+      s.glide(s.reverbReturn.gain, inTunnel ? 0.8 : 0.5, 0.25, now);
+      if (this.engineSend) s.glide(this.engineSend.gain, inTunnel ? 0.22 : 0.025, 0.25, now);
+      // echo only: the dry engine steps back so the tail adds no loudness
+      s.glide(s.engineSide.gain, (1 - Math.max(0, this.sidechain)) * (inTunnel ? TUNNEL_DRY : 1), 0.25, now);
     }
 
     const input = ctx.input?.state;
@@ -1241,7 +1275,7 @@ export class Audio implements System {
       const side = drifting ? CHARGE_SIDECHAIN[tier] : 0;
       if (side !== this.sidechain) {
         this.sidechain = side;
-        s.glide(s.engineSide.gain, 1 - side, 0.09, now);
+        s.glide(s.engineSide.gain, (1 - side) * (this.tunnel === 1 ? TUNNEL_DRY : 1), 0.09, now);
         s.glide(s.musicSide.gain, 1 - side * 1.25, 0.09, now);
         this.ambience?.setSide(now, side * 0.9);
       }
@@ -1302,7 +1336,7 @@ export class Audio implements System {
         const d = this.dest(e.kart);
         if (!d) return;
         if (e.tier <= 0) {
-          if (this.gate('scrub' + e.kart.id, 0.4)) this.scrub(d);
+          if (this.gate('scrub' + e.kart.id, 0.4)) this.scrub(this.at(d, 'scrub'));
         } else if (this.gate('tier' + e.kart.id, 0.12)) {
           this.chargeTier(d, e.tier, e.kart.isPlayer);
         }
@@ -1314,12 +1348,12 @@ export class Audio implements System {
         // noise, and leaving it to be cut by the next `set()` would strand it.
         if (e.kart.isPlayer) this.charge?.flourish(s.now, e.tier);
         const d = this.dest(e.kart);
-        if (d && this.gate('boost' + e.kart.id, 0.16)) this.boost(d, e.tier, e.kart.isPlayer);
+        if (d && this.gate('boost' + e.kart.id, 0.16)) this.boost(this.at(d, 'boost'), e.tier, e.kart.isPlayer);
         break;
       }
       case 'hop': {
         const d = this.dest(e.kart);
-        if (d && this.gate('hop' + e.kart.id, 0.12)) this.hop(d);
+        if (d && this.gate('hop' + e.kart.id, 0.12)) this.hop(this.at(d, 'hop'));
         break;
       }
       case 'land': {
@@ -1330,7 +1364,7 @@ export class Audio implements System {
       case 'collide': {
         const d = this.dest(e.kart);
         if (d && this.gate('bump' + e.kart.id, 0.09)) {
-          this.impact(d, clamp01(Math.abs(e.impulse) * 0.12), e.other !== null);
+          this.impact(this.at(d, e.other !== null ? 'bump' : 'wall'), clamp01(Math.abs(e.impulse) * 0.12), e.other !== null);
         }
         break;
       }
@@ -1338,10 +1372,10 @@ export class Audio implements System {
         const d = this.dest(e.kart);
         if (!d) return;
         if (e.kart.isPlayer) {
-          if (this.gate('pickup', 0.15)) this.coin(d);
-          this.roulette(d);
+          if (this.gate('pickup', 0.15)) this.coin(this.at(d, 'coin'));
+          this.roulette(this.at(d, 'roulette'));
         }
-        else if (this.gate('pick' + e.kart.id, 0.3)) this.blip(d, 880, 0.1, 0.12);
+        else if (this.gate('pick' + e.kart.id, 0.3)) this.blip(this.at(d, 'rivalPick'), 880, 0.1, 0.12);
         break;
       }
       case 'item-use':
@@ -1353,20 +1387,20 @@ export class Audio implements System {
       case 'lap': {
         if (!e.kart.isPlayer) return;
         const laps = this.ctx?.race?.totalLaps ?? 3;
-        this.lapChime(s.sfx, e.lap >= laps - 1);
+        this.lapChime(this.at(s.sfx, 'lap'), e.lap >= laps - 1);
         break;
       }
       case 'finish': {
         if (!e.kart.isPlayer) return;
-        this.fanfare(s.sfx, e.place <= 3);
+        this.fanfare(this.at(s.sfx, 'finish'), e.place <= 3);
         break;
       }
       case 'countdown':
-        this.countdown(s.sfx, e.n);
+        this.countdown(this.at(s.sfx, e.n > 0 ? 'countdown' : 'go'), e.n);
         break;
       case 'coin': {
         const d = this.dest(e.kart);
-        if (d && this.gate('coin', 0.05)) this.coin(d);
+        if (d && this.gate('coin', 0.05)) this.coin(this.at(d, 'coin'));
         break;
       }
       case 'ui':
@@ -1381,26 +1415,26 @@ export class Audio implements System {
     switch (kind) {
       case ItemKind.GreenShell:
       case ItemKind.RedShell:
-        this.shellFire(d, kind === ItemKind.RedShell);
+        this.shellFire(this.at(d, 'shell'), kind === ItemKind.RedShell);
         break;
       case ItemKind.Banana:
-        this.plop(d);
+        this.plop(this.at(d, 'plop'));
         break;
       case ItemKind.Bomb:
-        this.whoosh(d, 0.34, 0.32, true);
+        this.whoosh(this.at(d, 'bombThrow'), 0.34, 0.32, true);
         break;
       case ItemKind.Star:
-        this.starJingle(d);
+        this.starJingle(this.at(d, 'star'));
         break;
       case ItemKind.Bolt:
-        this.zap(d, true);
+        this.zap(this.at(d, 'zap'), true);
         break;
       case ItemKind.Mushroom:
       case ItemKind.TripleMushroom:
-        this.blip(d, 660, 0.07, 0.16, 'triangle');
+        this.blip(this.at(d, 'mushroom'), 660, 0.07, 0.16, 'triangle');
         break;
       default:
-        this.blip(d, 520, 0.06, 0.1);
+        this.blip(this.at(d, 'mushroom'), 520, 0.06, 0.1);
         break;
     }
   }
@@ -1410,26 +1444,26 @@ export class Audio implements System {
     if (!d || !this.gate('hit' + kart.id, 0.08)) return;
     switch (kind) {
       case ItemKind.Bomb:
-        this.explosion(d, 1);
+        this.explosion(this.at(d, 'explosion'), 1);
         break;
       case ItemKind.GreenShell:
       case ItemKind.RedShell:
-        this.explosion(d, 0.62);
+        this.explosion(this.at(d, 'explosion'), 0.62);
         break;
       case ItemKind.Banana:
-        this.slip(d);
+        this.slip(this.at(d, 'slip'));
         break;
       case ItemKind.Bolt:
-        this.zap(d, false);
+        this.zap(this.at(d, 'zap'), false);
         break;
       case ItemKind.Star:
-        this.impact(d, 0.8, false);
+        this.impact(this.at(d, 'wall'), 0.8, false);
         break;
       default:
-        this.impact(d, 0.6, false);
+        this.impact(this.at(d, 'wall'), 0.6, false);
         break;
     }
-    if (kart.isPlayer && kind !== ItemKind.Star) this.dizzy(this.synth!.sfx);
+    if (kart.isPlayer && kind !== ItemKind.Star) this.dizzy(this.at(this.synth!.sfx, 'dizzy'));
   }
 
   // -------------------------------------------------------------------------
@@ -1644,7 +1678,7 @@ export class Audio implements System {
   private impact(dest: AudioNode, strength: number, soft: boolean) {
     const s = this.synth!;
     const t = s.now;
-    const v = 0.14 + strength * 0.6;
+    const v = 0.07 + strength * 0.26;
     const g = s.gain(EPS);
     const lp = s.biquad('lowpass', soft ? 1400 : 4200, 1);
     lp.connect(g);
@@ -1668,7 +1702,7 @@ export class Audio implements System {
     n.connect(bp);
     bp.connect(ng);
     ng.connect(g);
-    s.perc(ng.gain, t, 0.7, 0.001, soft ? 0.05 : 0.09);
+    s.perc(ng.gain, t, 0.38, 0.001, soft ? 0.05 : 0.09);
     n.start(t, Math.random());
     n.stop(t + 0.16);
     s.retire(n, bp, ng, lp, g);
@@ -1686,10 +1720,10 @@ export class Audio implements System {
     drive.connect(lp);
     lp.connect(g);
     g.connect(dest);
-    const send = s.send(g, s.sfxVerb, 0.5);
+    const send = s.send(g, s.sfxVerb, 0.08);
     lp.frequency.setValueAtTime(4200, t);
     lp.frequency.exponentialRampToValueAtTime(160, t + dur);
-    s.perc(g.gain, t, 0.55 * size + 0.2, 0.004, dur);
+    s.perc(g.gain, t, 0.2 * size + 0.07, 0.004, dur);
     n.start(t, Math.random() * 1.5);
     n.stop(t + dur + 0.1);
     s.retire(n, drive, lp, g, send);
@@ -1700,7 +1734,7 @@ export class Audio implements System {
     og.connect(dest);
     o.frequency.setValueAtTime(110, t);
     o.frequency.exponentialRampToValueAtTime(32, t + dur * 0.7);
-    s.perc(og.gain, t, 0.5 * size, 0.006, dur * 0.8);
+    s.perc(og.gain, t, 0.26 * size, 0.006, dur * 0.8);
     o.start(t);
     o.stop(t + dur);
     s.retire(o, og);
@@ -1893,7 +1927,7 @@ export class Audio implements System {
     idx.gain.exponentialRampToValueAtTime(freq * 0.05, t + dur * 0.4);
     car.connect(g);
     s.perc(g.gain, t, vol, 0.005, dur);
-    const send = s.send(g, s.sfxVerb, 0.35);
+    const send = s.send(g, s.sfxVerb, 0.12);
     car.start(t);
     mod.start(t);
     car.stop(t + dur + 0.1);
@@ -1916,6 +1950,7 @@ export class Audio implements System {
 
   private ui(dest: AudioNode, name: string) {
     if (!this.gate('ui', 0.04)) return;
+    dest = this.at(dest, 'ui:' + name in SFX_TRIM ? 'ui:' + name : 'ui');
     switch (name) {
       case 'confirm':
       case 'start':

@@ -1633,7 +1633,10 @@ export class Sky implements System {
   private cascades: Cascade[] = [];
   private frame = 0;
   private boltAt = -10;
-  private nextBolt = 8;
+  private nextBolt = 4;
+  private sheetAt = -10;
+  private nextSheet = 1.5;
+  private sheetPeak = 0;
   private flashBase: number[] = [];
 
   // light-space basis, matching DirectionalLightShadow's own lookAt convention
@@ -1721,20 +1724,35 @@ export class Sky implements System {
     this.probe.intensity *= w.probeIntensity;
   }
 
-  /** Winter lightning: a bolt every 7-18 s, a double flicker that also lifts the fill lights. */
+  /**
+   * Winter lightning: a visible bolt every 1.2-4 s with a double flicker that lifts the
+   * fill lights, and between them dimmer sheet flashes inside the cloud deck.
+   */
   private storm(t: number): void {
     const u = this.material.uniforms;
     if (t < this.boltAt) this.boltAt = this.nextBolt = -10;
+    if (t < this.sheetAt) this.sheetAt = this.nextSheet = -10;
     if (t >= this.nextBolt) {
       this.boltAt = t;
-      this.nextBolt = t + 7 + Math.random() * 11;
+      this.nextBolt = t + 1.2 + Math.random() * 2.8;
       const az = Math.random() * Math.PI * 2;
       (u.uFlashDir.value as THREE.Vector3).set(Math.cos(az), 0.1 + Math.random() * 0.08, Math.sin(az)).normalize();
       u.uFlashSeed.value = Math.random() * 100;
     }
     const e = t - this.boltAt;
-    const f = e < 0.07 ? 1 : e < 0.15 ? 0.2 : e < 0.24 ? 0.8 : Math.max(0, 0.8 * (1 - (e - 0.24) / 0.45));
+    const fb = e < 0.07 ? 1 : e < 0.15 ? 0.2 : e < 0.24 ? 0.8 : Math.max(0, 0.8 * (1 - (e - 0.24) / 0.45));
+    if (t >= this.nextSheet && fb <= 0) {
+      this.sheetAt = t;
+      this.nextSheet = t + 0.4 + Math.random() * 1.2;
+      this.sheetPeak = 0.25 + Math.random() * 0.25;
+      const az = Math.random() * Math.PI * 2;
+      (u.uFlashDir.value as THREE.Vector3).set(Math.cos(az), 0.14 + Math.random() * 0.1, Math.sin(az)).normalize();
+    }
+    const es = t - this.sheetAt;
+    const fs = es < 0.06 ? this.sheetPeak : es < 0.12 ? this.sheetPeak * 0.3 : Math.max(0, this.sheetPeak * (1 - (es - 0.12) / 0.3));
+    const f = Math.max(fb, fs);
     u.uFlash.value = f;
+    u.uBolt.value = fb >= fs ? 1 : 0;
     if (!this.flashBase.length) this.flashBase = [this.skyFill.intensity, this.probe.intensity];
     this.skyFill.intensity = this.flashBase[0] * (1 + f * 2.5);
     this.probe.intensity = this.flashBase[1] * (1 + f * 0.9);
@@ -1875,6 +1893,8 @@ export class Sky implements System {
         uFlash: { value: 0 },
         uFlashDir: { value: new THREE.Vector3(0, 0.12, -1).normalize() },
         uFlashSeed: { value: 0 },
+        uBolt: { value: 1 },
+        uVortex: { value: WINTER ? 1 : 0 },
       },
       defines: { CLOUD_LAYERS: layers },
       vertexShader: SKY_VERTEX_SHADER,

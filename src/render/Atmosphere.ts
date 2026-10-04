@@ -1138,6 +1138,8 @@ uniform float uStars;
 uniform float uFlash;
 uniform vec3 uFlashDir;
 uniform float uFlashSeed;
+uniform float uBolt;
+uniform float uVortex;
 
 varying vec3 vDir;
 
@@ -1415,6 +1417,24 @@ void main() {
   col = mix(col, c2.rgb, c2.a);
 #endif
 
+  // Winter hurricane: dark spiral arms wheeling round an eye high in the sky.
+  if (uVortex > 0.0) {
+    vec3 vc = normalize(vec3(0.35, 1.0, -0.3));
+    vec3 vax = normalize(cross(vc, vec3(0.0, 0.0, 1.0)));
+    vec3 vay = cross(vax, vc);
+    vec2 vq = vec2(dot(dir, vax), dot(dir, vay));
+    float vr = length(vq) + 1e-4;
+    float vang = atan(vq.y, vq.x);
+    float vn = texture2D(uNoise, vq * 1.3 + vec2(uTime * 0.003, 0.0)).r;
+    float arms = sin(vang * 3.0 - log(vr) * 5.0 + uTime * 0.12 + (vn - 0.5) * 2.4);
+    float band = smoothstep(-0.1, 0.8, arms);
+    float reach = smoothstep(1.15, 0.2, vr) * step(0.0, dot(dir, vc)) * smoothstep(0.0, 0.18, dir.y);
+    float eye = smoothstep(0.035, 0.09, vr);
+    float k = reach * eye * uVortex;
+    col = mix(col, col * 0.42, band * k);
+    col += vec3(0.035, 0.04, 0.05) * (1.0 - band) * k;
+  }
+
   // Map mood lightning; uFlash is 0 outside the winter storm.
   if (uFlash > 0.0) {
     float fd = max(dot(dir, uFlashDir), 0.0);
@@ -1425,7 +1445,7 @@ void main() {
                + 0.003 * sin(y * 620.0 + uFlashSeed * 4.1);
     float d = abs(dot(dir, fx) - path);
     float span = step(0.9, fd) * smoothstep(0.0, 0.03, y) * (1.0 - smoothstep(uFlashDir.y + 0.12, uFlashDir.y + 0.18, y));
-    col += vec3(0.85, 0.9, 1.0) * uFlash * span * (smoothstep(0.0022, 0.0, d) * 6.0 + exp(-d * 160.0) * 0.8);
+    col += vec3(0.85, 0.9, 1.0) * uFlash * uBolt * span * (smoothstep(0.0022, 0.0, d) * 6.0 + exp(-d * 160.0) * 0.8);
   }
 
   float n = hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy + 17.31) - 1.0;

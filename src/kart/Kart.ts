@@ -748,6 +748,8 @@ export class Kart implements IKart {
   private steerAngle = 0;
   private boostStrength = 1;
   private topSpeed = BASE_TOP_SPEED;
+  /** Winter: a shivering driver loses top speed (1 = no effect). */
+  coldMul = 1;
 
   // drift / hop / trick
   private wantDriftPrev = false;
@@ -1376,7 +1378,7 @@ export class Kart implements IKart {
     const boosting = this.boostTime > 0;
     this.topSpeed =
       BASE_TOP_SPEED * this.stats.topSpeedMul * surfMax * (boosting ? this.boostStrength : 1) *
-      (this.starTime > 0 ? 1.06 : 1);
+      (this.starTime > 0 ? 1.06 : 1) * this.coldMul;
 
     const vf = fwdBefore;
     this.forwardSpeed = vf;
@@ -1619,8 +1621,12 @@ export class Kart implements IKart {
         // beta' = aLat/v - yawRate, so cutting the yaw rate closes the slide.
         if (excess > 0) this.yawRate += Math.sign(beta) * Math.min(excess, 0.8) * 45 * h;
       }
-    } else {
+    } else if (!grounded) {
       this.yawRate += (this.spinDir * 9 - this.yawRate) * smooth(9, h);
+    } else {
+      // hit on the ground: no pirouette, the kart just brakes to a stop
+      this.yawRate -= this.yawRate * clamp(8 * h, 0, 1);
+      this.velocity.multiplyScalar(1 - clamp(2.6 * h, 0, 0.5));
     }
     this.yawRate = clamp(this.yawRate, -7, 7);
     this.yawRate -= this.yawRate * clamp(1.1 * h, 0, 0.5);

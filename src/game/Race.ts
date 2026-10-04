@@ -34,6 +34,7 @@ import {
   type KartStats,
 } from '../types';
 import { Kart } from '../kart/Kart';
+import { WINTER } from '../render/Mood';
 import { AIField, type DriveCmd } from './AI';
 import { Items } from './Items';
 
@@ -103,6 +104,8 @@ interface Progress {
   stuckT: number;
   /** no-throttle hold after a drop */
   respawnT: number;
+  /** seconds left in the air after a tornado toss before the crane picks it up */
+  tossT: number;
   /** how long the throttle has been held during the countdown */
   hold: number;
   /** throttle/brake applied this frame, so "stuck" means stuck while trying */
@@ -161,6 +164,11 @@ export class Race implements IRace {
   bestLap = Infinity;
   /** true while the player is pointing the wrong way at speed */
   wrongWay = false;
+  /** Winter: the driver's warmth, 100 warm .. 0 frozen. */
+  warmth = 100;
+  /** Winter: above 130 km/h right now (the HUD flashes the gauge) */
+  chilled = false;
+  private chillAt = -10;
 
   /**
    * Debug / capture hook: hand the player's kart to the AI. The screenshot
@@ -229,7 +237,7 @@ export class Race implements IRace {
       this.karts.push(k);
       this.prog.push({
         lapIndex: -1, cp: 0, lapStart: 0, best: Infinity, finishOrder: 0, finishTime: 0,
-        wrongT: 0, badT: 0, stuckT: 0, respawnT: 0, hold: 0, effort: 0,
+        wrongT: 0, badT: 0, stuckT: 0, respawnT: 0, tossT: 0, hold: 0, effort: 0,
       });
       this.standings.push(k);
     }
@@ -269,6 +277,8 @@ export class Race implements IRace {
     this.raceTime = 0;
     this.resultsT = 0;
     this.wrongWay = false;
+    this.warmth = 100;
+    this.player.coldMul = 1;
     this.finishedCount = 0;
     this.closed = false;
     this.lapTimes.length = 0;
@@ -375,7 +385,7 @@ export class Race implements IRace {
       p.best = Infinity;
       p.finishOrder = 0;
       p.finishTime = 0;
-      p.wrongT = p.badT = p.stuckT = p.respawnT = p.hold = p.effort = 0;
+      p.wrongT = p.badT = p.stuckT = p.respawnT = p.tossT = p.hold = p.effort = 0;
       this.standings[i] = k;
     }
     this.updateProgress();
@@ -562,6 +572,7 @@ export class Race implements IRace {
     this.updateProgress();
     if (rolling) this.watchdogs(ctx, dt);
     this.updateWrongWay(ctx, dt, live);
+    if (WINTER) this.updateCold(ctx, dt, live);
     this.updateCamera(ctx, dt);
   }
 
@@ -791,6 +802,13 @@ export class Race implements IRace {
       const p = this.prog[i];
       if (p.respawnT > 0 || this.remote[i]) continue;
 
+      // thrown by the tornado: let it fly, then crane it back like a cliff jump
+      if (p.tossT > 0) {
+        p.tossT -= dt;
+        if (p.tossT <= 0) { p.tossT = 0; this.respawn(ctx, k, p); }
+        continue;
+      }
+
       const bad = k.surface === Surface.Water || k.surface === Surface.OffTrack;
       p.badT = bad ? p.badT + dt : 0;
 
@@ -803,6 +821,12 @@ export class Race implements IRace {
 
       if (p.badT > OOB_LIMIT || p.stuckT > STUCK_LIMIT) this.respawn(ctx, k, p);
     }
+  }
+
+  /** Winter tornado: this kart is airborne; respawn it after `seconds` of flight. */
+  toss(index: number, seconds: number) {
+    const p = this.prog[index];
+    if (p && p.tossT <= 0) p.tossT = seconds;
   }
 
   /**
@@ -856,6 +880,33 @@ export class Race implements IRace {
     if (now !== this.wrongWay) {
       this.wrongWay = now;
       ctx.bus.emit({ type: 'ui', name: now ? 'wrong-way' : 'wrong-way-clear' });
+    }
+  }
+
+  /**
+   * Winter: wind chill in an open kart in freezing rain. Above 85 km/h the
+   * driver cools - slowly at 100, fast past 130 (with a warning); below it they
+   * warm back up. Cold costs top speed; frozen solid craned back like a
+   * wrong-way run.
+   */
+  private updateCold(ctx: Ctx, dt: number, live: boolean) {
+    const k = this.player;
+    const p = this.prog[k.id];
+    if (!live || this.remote[k.id] || k.finished) { k.coldMul = 1; this.chilled = false; return; }
+    const kmh = Math.abs(k.forwardSpeed) * 3.6;
+    const rate = kmh > 90 ? -2 - ((kmh - 90) / 40) * 4 : kmh > 80 ? -((kmh - 80) / 10) * 2 : ((80 - kmh) / 80) * 8.5;
+    const chill = kmh > 130;
+    if (chill && !this.chilled && ctx.time - this.chillAt > 4) {
+      this.chillAt = ctx.time;
+      ctx.bus.emit({ type: 'ui', name: 'wind-chill' });
+    }
+    this.chilled = chill;
+    this.warmth = Math.max(0, Math.min(100, this.warmth + rate * dt));
+    k.coldMul = this.warmth < 35 ? 0.92 : 1;
+    if (this.warmth <= 0 && p.respawnT <= 0) {
+      ctx.bus.emit({ type: 'ui', name: 'frozen' });
+      this.respawn(ctx, k, p);
+      this.warmth = 55;
     }
   }
 

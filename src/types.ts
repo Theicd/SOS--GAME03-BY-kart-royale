@@ -274,6 +274,8 @@ export interface IRace extends System {
   readonly standings: IKart[];
   /** Index into `karts` of the machine the human is driving. */
   readonly selectedKart: number;
+  /** Winter: the driver's warmth, 100 warm .. 0 frozen (always 100 on other maps). */
+  readonly warmth: number;
   /**
    * Hand the player a different kart from the roster. The select screen had no
    * way to say this, so it moved a highlight and nothing else — every race was

@@ -46,6 +46,7 @@ import './ui.css';
 import { BASE_TOP_SPEED, ItemKind, RaceState, type Ctx, type IKart, type System } from '../types';
 import { Minimap } from './Minimap';
 import { session, SESSION_ROUNDS } from '../game/Session';
+import { WINTER } from '../render/Mood';
 import { Menus } from './Menus';
 import { ItemIconAtlas, ITEM_NAMES, ITEM_TINT, ROULETTE_ORDER } from './ItemIcons';
 import {
@@ -194,6 +195,10 @@ export class HUD implements System {
   private tF!: Pair;
   private bestWrap!: HTMLDivElement;
   private bestVal!: HTMLSpanElement;
+  private tempWrap: HTMLDivElement | null = null;
+  private tempFill: HTMLElement | null = null;
+  private tempVal: HTMLSpanElement | null = null;
+  private tempShown = -1;
 
   // position / rival interval
   private relRow!: HTMLDivElement;
@@ -413,6 +418,15 @@ export class HUD implements System {
     this.bestWrap = el('div', 'kr-pill kr-bestpill', this.topRight);
     el('span', 'kr-line-k', this.bestWrap, 'Best');
     this.bestVal = el('span', 'kr-line-v', this.bestWrap, '0:00.000');
+
+    // Winter: the driver's temperature, under the clock.
+    if (WINTER) {
+      this.tempWrap = el('div', 'kr-pill kr-temp', this.topRight);
+      el('span', 'kr-line-k', this.tempWrap, '\u2744 Temp');
+      const bar = el('span', 'kr-temp-bar', this.tempWrap);
+      this.tempFill = el('i', undefined, bar);
+      this.tempVal = el('span', 'kr-line-v', this.tempWrap, '+5.0\u00b0');
+    }
   }
 
   private buildPosition() {
@@ -532,6 +546,11 @@ export class HUD implements System {
           this.chain = 0;
           this.chainT = 0;
         }
+        break;
+      case 'ui':
+        if (e.name === 'frozen') this.toast('Frozen!', '\u2744', '#9fd8ff');
+        else if (e.name === 'wind-chill') this.toast('Wind chill!', '\u2744', '#6ec8ff');
+        else if (e.name === 'tornado') this.toast('Tornado!', '\u{1F32A}', '#b8c4d0');
         break;
       case 'finish':
         if (e.kart === player) {
@@ -865,6 +884,19 @@ export class HUD implements System {
 
     // --- speedometer -------------------------------------------------------
     const kmh = Math.abs(player.forwardSpeed) * 3.6;
+    if (this.tempWrap && this.tempFill && this.tempVal) {
+      // felt temperature in the open cockpit: +5 C standing, -12 C frozen
+      const w = race.warmth;
+      const q = Math.round(w);
+      this.tempWrap.classList.toggle('cold', q < 35 || (race as any).chilled === true);
+      if (q !== this.tempShown) {
+        this.tempShown = q;
+        this.tempFill.style.width = `${q}%`;
+        this.tempFill.style.background = q < 30 ? '#3a8dff' : q < 60 ? '#8fd4ff' : '#eaf6ff';
+        const c = -12 + w * 0.17;
+        setText(this.tempVal, `${c > 0 ? '+' : ''}${c.toFixed(1)}\u00b0`);
+      }
+    }
     const frac = clamp(kmh / this.speedMax, 0, 1);
     this.needle.target = frac;
     this.needle.step(dt);

@@ -53,23 +53,23 @@ export interface MoodLook {
   stars?: number;
 }
 
-/** Winter storm: dark grey deck, cold dim sun glowing through it, muted colour. */
+/** Winter storm: a solid dark rain deck, no direct sun, flat cold light, muted colour. */
 export const WINTER_LOOK: MoodLook = {
   // sky dome, linear
   overcastHorizon: new THREE.Vector3(0.26, 0.29, 0.34),
-  overcastZenith: new THREE.Vector3(0.13, 0.15, 0.19),
+  overcastZenith: new THREE.Vector3(0.10, 0.115, 0.145),
   overcastAmount: 0.95,
-  cloudCover: 0.3,
-  cloudSun: new THREE.Vector3(0.46, 0.49, 0.55),
-  cloudAmbient: new THREE.Vector3(0.055, 0.062, 0.078),
-  sunDiscScale: 0.03,
+  cloudCover: 0.5,
+  cloudSun: new THREE.Vector3(0.2, 0.21, 0.24),
+  cloudAmbient: new THREE.Vector3(0.1, 0.11, 0.13),
+  sunDiscScale: 0,
   haze: new THREE.Vector3(0.26, 0.29, 0.34),
   ground: new THREE.Vector3(0.08, 0.09, 0.11),
   // lights
   sunColor: 0xdde4ee,
-  sunIntensity: 0.42,
+  sunIntensity: 0.2,
   fillColor: 0xaab4c2,
-  fillIntensity: 1.0,
+  fillIntensity: 1.35,
   bounceColor: 0x80848c,
   bounceIntensity: 0.6,
   probeSaturation: 0.35,

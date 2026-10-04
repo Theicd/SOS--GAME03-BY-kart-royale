@@ -361,10 +361,11 @@ varying vec3 vShore;
 ${WAVES}
 
 #if defined(MOOD_WINTER)
-const vec3 ZENITH  = vec3(0.1300, 0.1500, 0.1900);
-const vec3 HORIZON = vec3(0.2600, 0.2900, 0.3400);
-const vec3 SHALLOW = vec3(0.0700, 0.1800, 0.2000);
-const vec3 DEEP    = vec3(0.0150, 0.0450, 0.0650);
+// storm sea: dark blue-green, not the grey of the sky it reflects
+const vec3 ZENITH  = vec3(0.0700, 0.1050, 0.1300);
+const vec3 HORIZON = vec3(0.1500, 0.2050, 0.2400);
+const vec3 SHALLOW = vec3(0.0550, 0.2200, 0.2300);
+const vec3 DEEP    = vec3(0.0100, 0.0650, 0.0850);
 #elif defined(MOOD_NIGHT)
 const vec3 ZENITH  = vec3(0.0030, 0.0050, 0.0120);
 const vec3 HORIZON = vec3(0.0350, 0.0450, 0.0750);
@@ -395,7 +396,7 @@ const vec3 FOAM    = vec3(0.8549, 0.9559, 1.0000);   // #eefaff
 // of the luminance and twice the saturation it stops being concrete and starts
 // being the deep end of a bay.
 #if defined(MOOD_WINTER)
-const vec3 HZ_ANTI = vec3(0.2000, 0.2250, 0.2700);
+const vec3 HZ_ANTI = vec3(0.1300, 0.1800, 0.2100);
 #elif defined(MOOD_NIGHT)
 const vec3 HZ_ANTI = vec3(0.0120, 0.0160, 0.0300);
 #else
