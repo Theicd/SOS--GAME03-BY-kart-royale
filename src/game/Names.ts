@@ -17,7 +17,17 @@ export function cleanName(v: unknown): string {
   return v.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, NAME_MAX);
 }
 
+function queryName(): string {
+  try { return cleanName(new URLSearchParams(location.search).get('name')); }
+  catch { return ''; }
+}
+
+/** Set when SOS opened the game with `?name=`. The title field stays on that name. */
+const queriedName = queryName();
+export const nameLocked = !!queriedName;
+
 function load(): string {
+  if (queriedName) return queriedName;
   try { return cleanName(localStorage.getItem(KEY)); } catch { return ''; }
 }
 
@@ -38,6 +48,7 @@ export class Names implements System {
   init() {}
 
   setPlayer(v: string) {
+    if (nameLocked) return;
     this.player = cleanName(v);
     try { localStorage.setItem(KEY, this.player); } catch { /* storage blocked */ }
   }

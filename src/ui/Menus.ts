@@ -11,7 +11,7 @@
  * `?ui=title|select|pause|results` forces a screen, for capture and review.
  */
 import { session, SESSION_ROUNDS, ROUND_POINTS, MEDALS } from '../game/Session';
-import { names, NAME_MAX } from '../game/Names';
+import { names, NAME_MAX, nameLocked } from '../game/Names';
 import { hiscores, type HiScore } from '../game/HighScores';
 import { RaceState, type Ctx, type IKart, type KartStats } from '../types';
 import { el, formatClock, ordinalSuffix, cssColor, clamp } from './uiUtil';
@@ -215,6 +215,15 @@ function buildRays() {
     s += `<path d="M450 200 L${x0.toFixed(1)} ${y0.toFixed(1)} L${x1.toFixed(1)} ${y1.toFixed(1)} Z" fill="#ffbe62" opacity="0.11"/>`;
   }
   return s;
+}
+
+/** Tells the SOS panel the race has started, so the fullscreen control appears. */
+function notifySosPlaying() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'kart-playing' }, '*');
+    }
+  } catch { /* opened on its own */ }
 }
 
 export class Menus {
@@ -521,6 +530,7 @@ export class Menus {
   }
 
   private beginRace(ctx: Ctx, index: number) {
+    notifySosPlaying();
     this.forced = null;
     this.localTitle = false;
     this.selecting = false;
@@ -595,7 +605,8 @@ export class Menus {
     nameIn.autocomplete = 'off';
     nameIn.spellcheck = false;
     nameIn.value = names.player;
-    nameIn.oninput = () => names.setPlayer(nameIn.value);
+    if (nameLocked) nameIn.readOnly = true;
+    nameIn.oninput = () => { if (!nameLocked) names.setPlayer(nameIn.value); };
     nameIn.onblur = () => { nameIn.value = names.player; };
     for (const ev of ['pointerdown', 'click', 'touchstart', 'keyup'] as const) nameIn.addEventListener(ev, (e) => e.stopPropagation());
     nameIn.addEventListener('keydown', (e) => {
